@@ -341,10 +341,14 @@ def _extract_retry_after_timeout(response):
 # conditions hold. This causes a BadRequest 400 HTTP code, which is
 # subsequentally retried.
 def _maybe_trucate_request(url, try_index, data):
+    from random import randint
     if _INJECT_ERROR:
-        if try_index == 0 and "upload" in url and len(data) > 10000:
+        if (try_index < 3 or randint(0, 9) == 0) \
+           and "upload" in url and len(data) > 10000:
+            logger.info("truncating upload data to length=10000")
             return data[0:10000]
     return data
+
 
 # If error injection is turned on, possibly chop the response data,
 # and cause an incomplete read.
@@ -597,7 +601,7 @@ def DXHTTPRequest(resource, data, method='POST', headers=None, auth=True,
                         if "data" in response:
                             raise DXIncompleteReadsError(response.data)
                         else:
-                            raise DXIncompleteReadsError("")
+                            raise DXIncompleteReadsError(b"")
 
                 if ok_to_retry:
                     if rewind_input_buffer_offset is not None:
@@ -625,34 +629,45 @@ def DXHTTPRequest(resource, data, method='POST', headers=None, auth=True,
 
 # Build a message from parts that are strings.
 # This helps efficiently keep track of range parts that are arriving.
-# We do not want to use the, possibly expensive, string append function.
+# We do not want to use the expensive string append function.
 # It could also lead to quadratic behavior, if the number of pieces is large.
+# Therefore, we convert to a StringIO representation, if there is more than a single part.
 #
-# Note: the range start and end could be None
+# Note: the common case is that the message arrives in a one piece, in which case
+# we do not want to go through the expensive StringIO conversion.
 class BufferBuilder(object):
     def __init__(self):
-        self._parts = []
+        self._num_parts = 0
         self._tot_len = 0
+        self._singleton = None
+        self._iobuf = None
 
     def len(self):
         return self._tot_len
 
     def concat(self):
-        if len(self._parts) == 0:
+        if self._num_parts == 0:
             return b""
-        if len(self._parts) == 1:
-            return self._parts[0]
-        # There are two parts or more, use StringIO to concatenate
-        # efficiently.
-        iobuf = StringIO()
-        for p in self._parts:
-            iobuf.write(p)
-        retval = iobuf.getvalue()
-        iobuf.close()
+        if self._num_parts == 1:
+            return self._singleton
+        assert(self._num_parts > 1)
+        assert(self._singleton is None)
+        retval = self._iobuf.getvalue()
+        self._iobuf.close()
         return retval
 
     def append(self, p):
-        self._parts.append(p)
+        if self._num_parts == 0:
+            self._singleton = p
+        elif self._num_parts == 1:
+            logger.info("Message arrived in more than one piece")
+            self._iobuf = StringIO()
+            self._iobuf.write(self._singleton)
+            self._iobuf.write(p)
+            self._singleton = None
+        else:
+            self._iobuf.write(p)
+        self._num_parts += 1
         self._tot_len += len(p)
 
     def append_and_concat(self, p):
