@@ -590,8 +590,8 @@ def DXHTTPRequest(resource, data, method='POST', headers=None, auth=True,
                        response.status == 400 and is_retryable and \
                        isinstance(e, requests.exceptions.HTTPError) and \
                        '<Code>RequestTimeout</Code>' in exception_msg:
-                        logger.info("Retrying 400 HTTP error, due to slow data transfer %s %s %s",
-                                    method, url, exception_msg)
+                        logger.info("Retrying 400 HTTP error, due to slow data transfer %s",
+                                    exception_msg)
                         ok_to_retry = True
 
                     # We received only a part of the data, due to a torn connection.
@@ -694,8 +694,7 @@ def _dxhttp_read_range(url, headers, start_pos, end_pos, timeout, sub_range):
             return bb.append_and_concat(data)
         except DXIncompleteReadsError as e:
             bb.append(e.data)
-            if _DEBUG > 0:
-                print("Caught incompleteReads error tot_len=", bb.len(), file=sys.stderr)
+            logger.info("Caught incompleteReads error tot_len=%d", bb.len())
             headers['Range'] = "bytes={}-{}".format(start_pos + bb.len(), end_pos)
 
 
