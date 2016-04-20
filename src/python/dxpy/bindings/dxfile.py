@@ -31,7 +31,7 @@ from multiprocessing import cpu_count
 
 import dxpy
 from . import DXDataObject
-from ..exceptions import DXFileError
+from ..exceptions import DXFileError, DXIncompleteReadsError
 from ..utils import warn
 from ..utils.resolver import object_exists_in_project
 from ..compat import BytesIO, basestring
@@ -861,7 +861,14 @@ class DXFile(DXDataObject):
                 if self._response_iterator is None:
                     self._request_iterator = self._generate_read_requests(
                         start_pos=self._pos, project=project, **kwargs)
-                content = self._next_response_content()
+
+                try:
+                    content = self._next_response_content()
+                except DXIncompleteReadsError:
+                    # Data source is slow, back off and use smaller buffers
+                    self._request_iterator = self._generate_read_requests(
+                        start_pos=self._pos, project=project, limit_chunk_size=MIN_BUFFER_SIZE, **kwargs)
+                    content = self._next_response_content()
 
                 if len(content) < remaining_len:
                     buf.write(content)
