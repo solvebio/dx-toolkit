@@ -767,8 +767,15 @@ class DXFile(DXDataObject):
 
         for chunk_start_pos, chunk_end_pos in chunk_ranges(start_pos, end_pos):
             url, headers = self.get_download_url(project=project, **kwargs)
-            yield dxpy._dxhttp_read_range, [url, headers, chunk_start_pos, chunk_end_pos,
-                                            FILE_REQUEST_TIMEOUT, True], {}
+            headers['Range'] = "bytes=" + str(chunk_start_pos) + "-" + str(chunk_end_pos)
+            yield dxpy.DXHTTPRequest, [url, ''], {'method': 'GET',
+                                                  'headers': headers,
+                                                  'auth': None,
+                                                  'jsonify_data': False,
+                                                  'prepend_srv': False,
+                                                  'always_retry': True,
+                                                  'timeout': FILE_REQUEST_TIMEOUT,
+                                                  'decode_response_body': False}
 
     def _next_response_content(self):
         self._ensure_http_threadpool()
