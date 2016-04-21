@@ -336,13 +336,16 @@ def _extract_retry_after_timeout(response):
 # Truncate the message, if the error injection flag is on, and other
 # conditions hold. This causes a BadRequest 400 HTTP code, which is
 # subsequentally retried.
+#
+# Note: the minimal upload size for S3 is 5MB, so we can get a "400 Bad Request"
+# due to that issue.
 def _maybe_trucate_request(url, try_index, data):
+    MIN_UPLOAD_LEN = 16 * 1024
     from random import randint
     if _INJECT_ERROR:
-        if (try_index < 3 or randint(0, 9) == 0) \
-           and "upload" in url and len(data) > 10000:
-            logger.info("truncating upload data to length=10000")
-            return data[0:10000]
+        if (randint(0, 9) == 0) and "upload" in url and len(data) > MIN_UPLOAD_LEN:
+            logger.info("truncating upload data to length=%d", MIN_UPLOAD_LEN)
+            return data[0:MIN_UPLOAD_LEN]
     return data
 
 
@@ -584,12 +587,14 @@ def DXHTTPRequest(resource, data, method='POST', headers=None, auth=True,
 
                     # The server has closed the connection prematurely
                     if response is not None and \
-                       response.status == 400 and is_retryable and \
-                       isinstance(e, requests.exceptions.HTTPError) and \
-                       '<Code>RequestTimeout</Code>' in exception_msg:
-                        logger.info("Retrying 400 HTTP error, due to slow data transfer %s",
-                                    exception_msg)
-                        ok_to_retry = True
+                       response.status == 400 and is_retryable and method == 'PUT' and \
+                       isinstance(e, requests.exceptions.HTTPError):
+                        if '<Code>RequestTimeout</Code>' in exception_msg:
+                            logger.info("Retrying 400 HTTP error, due to slow data transfer")
+                            ok_to_retry = True
+                        else:
+                            logger.info("400 HTTP error, of unknown origin, exception_msg=[%s]", exception_msg)
+                            ok_to_retry = True
 
                 if ok_to_retry:
                     if rewind_input_buffer_offset is not None:
