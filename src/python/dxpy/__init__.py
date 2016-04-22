@@ -337,8 +337,10 @@ def _extract_retry_after_timeout(response):
 # conditions hold. This causes a BadRequest 400 HTTP code, which is
 # subsequentally retried.
 #
-# Note: the minimal upload size for S3 is 5MB, so we can get a "400 Bad Request"
-# due to that issue.
+# Note: the minimal upload size for S3 is 5MB. In theory, you are
+# supposed to get an "EntityTooSmall" error from S3, which has a 400
+# code. However, I have not observed such responses in practice.
+# http://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
 def _maybe_trucate_request(url, try_index, data):
     MIN_UPLOAD_LEN = 16 * 1024
     from random import randint
@@ -591,10 +593,9 @@ def DXHTTPRequest(resource, data, method='POST', headers=None, auth=True,
                        isinstance(e, requests.exceptions.HTTPError):
                         if '<Code>RequestTimeout</Code>' in exception_msg:
                             logger.info("Retrying 400 HTTP error, due to slow data transfer")
-                            ok_to_retry = True
                         else:
                             logger.info("400 HTTP error, of unknown origin, exception_msg=[%s]", exception_msg)
-                            ok_to_retry = True
+                        ok_to_retry = True
 
                 if ok_to_retry:
                     if rewind_input_buffer_offset is not None:
