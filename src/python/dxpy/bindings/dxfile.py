@@ -765,17 +765,40 @@ class DXFile(DXDataObject):
                     cur_chunk_size = min(cur_chunk_size * ramp, limit_chunk_size)
                 i += 1
 
+        url, headers = self.get_download_url(project=project, **kwargs)
         for chunk_start_pos, chunk_end_pos in chunk_ranges(start_pos, end_pos):
-            url, headers = self.get_download_url(project=project, **kwargs)
-            headers['Range'] = "bytes=" + str(chunk_start_pos) + "-" + str(chunk_end_pos)
-            yield dxpy.DXHTTPRequest, [url, ''], {'method': 'GET',
-                                                  'headers': headers,
-                                                  'auth': None,
-                                                  'jsonify_data': False,
-                                                  'prepend_srv': False,
-                                                  'always_retry': True,
-                                                  'timeout': FILE_REQUEST_TIMEOUT,
-                                                  'decode_response_body': False}
+            chunk_list = [(chunk_start_pos, chunk_end_pos)]
+
+            while True:
+                try:
+                    headers['Range'] = "bytes=" + str(chunk_list[0][0]) + "-" + str(chunk_list[0][1])
+                    chunk_list.pop(0)
+                    yield dxpy.DXHTTPRequest, [url, ''], {'method': 'GET',
+                                                          'headers': headers,
+                                                          'auth': None,
+                                                          'jsonify_data': False,
+                                                          'prepend_srv': False,
+                                                          'always_retry': True,
+                                                          'timeout': FILE_REQUEST_TIMEOUT,
+                                                          'decode_response_body': False}
+                    # All chunks from chunk_list were successfully read
+                    if len(chunk_list) == 0:
+                        break
+                except:
+                    # Only break apart the chunk once
+                    if len(chunk_list) == 0:
+                        subchunk_len = Math.ceil((chunk_end_pos - chunk_start_pos + 1)/8)
+                        subchunk_start_pos = 0
+                        while subchunk_start_pos <= chunk_end_pos:
+                            chunk_list.append((subchunk_start_pos, min(subchunk_start_pos + subchunk_len - 1,
+                                chunk_end_pos)))
+                            subchunk_start_pos += subchunk_len
+                        continue
+
+                    # If a subchunk from the larger chunk fails to be read, raise exception
+                    else:
+                        raise DXIncompleteReadsError("")
+
 
     def _next_response_content(self):
         self._ensure_http_threadpool()
