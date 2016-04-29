@@ -639,6 +639,39 @@ class DXHTTPOAuth2(AuthBase):
             raise NotImplementedError("Token types other than bearer are not yet supported")
         return r
 
+def _dxhttp_read_range(url, headers, start_pos, end_pos, timeout, sub_range):
+    chunk_list = [(start_pos, end_pos)]
+    while True:
+        try:
+            headers['Range'] = "bytes=" + str(chunk_list[0][0]) + "-" + str(chunk_list[0][1])
+            chunk_list.pop(0)
+            yield dxpy.DXHTTPRequest, [url, ''], {'method': 'GET',
+                                                  'headers': headers,
+                                                  'auth': None,
+                                                  'jsonify_data': False,
+                                                  'prepend_srv': False,
+                                                  'always_retry': True,
+                                                  'timeout': FILE_REQUEST_TIMEOUT,
+                                                  'decode_response_body': False}
+            # All chunks from chunk_list were successfully read
+            if len(chunk_list) == 0:
+                break
+        except:
+            # Only break apart the chunk once
+            if len(chunk_list) == 0:
+                subchunk_len = math.ceil((end_pos - start_pos + 1)/8)
+                subchunk_start_pos = 0
+                while subchunk_start_pos <= end_pos:
+                    chunk_list.append((subchunk_start_pos, min(subchunk_start_pos + subchunk_len - 1,
+                                       end_pos)))
+                    subchunk_start_pos += subchunk_len
+                continue
+
+            # If a subchunk from the larger chunk fails to be read, raise exception
+            else:
+                raise DXIncompleteReadsError("")
+
+
 def set_api_server_info(host=None, port=None, protocol=None):
     '''
     :param host: API server hostname
