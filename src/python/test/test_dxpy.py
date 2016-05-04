@@ -20,6 +20,7 @@
 from __future__ import print_function, unicode_literals, division, absolute_import
 
 import os, unittest, tempfile, filecmp, time, json, sys
+import random
 import string
 import subprocess
 import platform
@@ -318,8 +319,6 @@ class TestDXFile(unittest.TestCase):
         self.new_file = tempfile.NamedTemporaryFile(delete=False)
         self.new_file.close()
 
-        self.dxfile = dxpy.DXFile()
-
     def tearDown(self):
         os.remove(self.new_file.name)
 
@@ -616,6 +615,41 @@ class TestDXFile(unittest.TestCase):
         self.assertEquals(parts['1']['size'], 5242880)
         self.assertEquals(parts['2']['size'], 2952504)
 
+
+#class TestDXFileErrorHandling(unittest.TestCase):
+#    #foo_str = ''.join(random.choice(string.ascii_letters) for x in range(64*1024*4))
+#    foo_str = "foo\n"
+#
+#    @classmethod
+#    def setUpClass(cls):
+#        cls.foo_file = tempfile.NamedTemporaryFile(delete=False)
+#        cls.foo_file.write(cls.foo_str)
+#        cls.foo_file.close()
+#
+#        cls.dxfile = dxpy.upload_local_file(cls.foo_file.name)
+#
+#    @classmethod
+#    def tearDownClass(cls):
+#        os.remove(cls.foo_file.name)
+#
+#    def setUp(self):
+#        setUpTempProjects(self)
+#
+#        self.new_file = tempfile.NamedTemporaryFile(delete=False)
+#        self.new_file.close()
+#
+#    def tearDown(self):
+#        os.remove(self.new_file.name)
+#
+#        tearDownTempProjects(self)
+#
+#    def test_incomplete_reads_download_dxfile(self):
+#        dxpy.download_dxfile(self.dxfile.get_id(), self.new_file.name)
+#        self.assertTrue(filecmp.cmp(self.foo_file.name, self.new_file.name))
+#
+#    def test_incomplete_reads_dxfile_read(self):
+#        # TODO
+#        pass
 
 @unittest.skipUnless(testutil.TEST_GTABLE, 'skipping test that would create a GTable')
 class TestDXGTable(unittest.TestCase):
