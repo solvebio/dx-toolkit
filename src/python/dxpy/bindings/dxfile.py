@@ -765,6 +765,7 @@ class DXFile(DXDataObject):
                     cur_chunk_size = min(cur_chunk_size * ramp, limit_chunk_size)
                 i += 1
 
+        url, headers = self.get_download_url(project=project, **kwargs)
         for chunk_start_pos, chunk_end_pos in chunk_ranges(start_pos, end_pos):
             url, headers = self.get_download_url(project=project, **kwargs)
             yield dxpy._dxhttp_read_range(url, headers, chunk_start_pos, chunk_end_pos, FILE_REQUEST_TIMEOUT)
