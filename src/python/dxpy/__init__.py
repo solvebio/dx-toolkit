@@ -647,7 +647,7 @@ class DXHTTPOAuth2(AuthBase):
             raise NotImplementedError("Token types other than bearer are not yet supported")
         return r
 
-def _dxhttp_read_range(url, headers, start_pos, end_pos, timeout, data=''):
+def _dxhttp_read_range(url, headers, start_pos, end_pos, timeout):
     chunk_list = [(start_pos, end_pos)]
     break_chunk = False
     chunk_buffer = StringIO()
@@ -657,14 +657,14 @@ def _dxhttp_read_range(url, headers, start_pos, end_pos, timeout, data=''):
             headers['Range'] = "bytes=" + str(chunk_list[0][0]) + "-" + str(chunk_list[0][1])
             print(chunk_list) #DEBUG
             chunk_list.pop(0)
-            data = dxpy.DXHTTPRequest, [url, ''], {'method': 'GET',
-                                                  'headers': headers,
-                                                  'auth': None,
-                                                  'jsonify_data': False,
-                                                  'prepend_srv': False,
-                                                  'always_retry': True,
-                                                  'timeout': timeout,
-                                                  'decode_response_body': False}
+            data = DXHTTPRequest(url, '', method= 'GET',
+                                          headers= headers,
+                                          auth= None,
+                                          jsonify_data= False,
+                                          prepend_srv= False,
+                                          always_retry= True,
+                                          timeout= timeout,
+                                          decode_response_body= False)
             print("Do we even get here") #DEBUG
             # Chunk was able to be read in entirety
             if break_chunk == False:
