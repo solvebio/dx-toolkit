@@ -353,10 +353,8 @@ def _maybe_trucate_request(url, try_index, data):
 
 
 def _raise_error_for_testing(method):
-    from random import randint
-    if _INJECT_ERROR:
-        if (method == 'GET') and (randint(0, 1) == 0):
-            raise exceptions.DXIncompleteReadsError()
+    if _INJECT_ERROR and method == 'GET':
+        raise exceptions.DXIncompleteReadsError()
 
 def DXHTTPRequest(resource, data, method='POST', headers=None, auth=True,
                   timeout=DEFAULT_TIMEOUT,
@@ -648,15 +646,29 @@ class DXHTTPOAuth2(AuthBase):
         return r
 
 def _dxhttp_read_range(url, headers, start_pos, end_pos, timeout):
-    chunk_list = [(start_pos, end_pos)]
-    break_chunk = False
-    chunk_buffer = StringIO()
+    headers['Range'] = "bytes=" + str(start_pos) + "-" + str(end_pos)
+    try:
+        data = DXHTTPRequest(url, '', method= 'GET',
+                             headers= headers,
+                             auth= None,
+                             jsonify_data= False,
+                             prepend_srv= False,
+                             always_retry= True,
+                             timeout= timeout,
+                             decode_response_body= False)
+        _raise_error_for_testing('GET')
+        return data
 
-    while True:
-        try:
-            headers['Range'] = "bytes=" + str(chunk_list[0][0]) + "-" + str(chunk_list[0][1])
-            print(chunk_list) #DEBUG
-            chunk_list.pop(0)
+    # When chunk fails to be read, it gets broken into sub-chunks
+    except exceptions.DXIncompleteReadsError:
+        chunk_buffer = StringIO()
+        subchunk_len = int(math.ceil((end_pos - start_pos + 1)/8))
+        subchunk_start_pos = start_pos
+
+        while True:
+            subchunk_end_pos = min(subchunk_start_pos + subchunk_len - 1, end_pos)
+            headers['Range'] = "bytes=" + str(subchunk_start_pos) + "-" + str(subchunk_end_pos)
+            subchunk_start_pos += subchunk_len
             data = DXHTTPRequest(url, '', method= 'GET',
                                           headers= headers,
                                           auth= None,
@@ -665,34 +677,15 @@ def _dxhttp_read_range(url, headers, start_pos, end_pos, timeout):
                                           always_retry= True,
                                           timeout= timeout,
                                           decode_response_body= False)
-            print("Do we even get here") #DEBUG
-            # Chunk was able to be read in entirety
-            if break_chunk == False:
-                return data
 
             # Concatenate sub-chunks
             chunk_buffer.write(data)
 
-            # All chunks from chunk_list were successfully read
-            if len(chunk_list) == 0:
+            # All sub-chunks successfully read
+            if subchunk_start_pos >= end_pos:
                 concat_chunks = chunk_buffer.getvalue()
                 chunk_buffer.close()
                 return concat_chunks
-        except:
-            # Only break apart the chunk once
-            if len(chunk_list) == 0:
-                break_chunk = True
-                subchunk_len = int(math.ceil((end_pos - start_pos + 1)/8))
-                subchunk_start_pos = 0
-                while subchunk_start_pos <= end_pos:
-                    chunk_list.append((subchunk_start_pos, min(subchunk_start_pos + subchunk_len - 1,
-                                       end_pos)))
-                    subchunk_start_pos += subchunk_len
-                continue
-
-            # If a subchunk from the larger chunk fails to be read, raise exception
-            else:
-                raise exceptions.DXIncompleteReadsError()
 
 
 def set_api_server_info(host=None, port=None, protocol=None):

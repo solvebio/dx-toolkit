@@ -115,21 +115,12 @@ def download_dxfile(dxid, filename, chunksize=dxfile.DEFAULT_BUFFER_SIZE, append
 
     '''
     # retry the inner loop while there are retriable errors
-    def download_with_chunksize(csize):
-        part_retry_counter = defaultdict(lambda: 3)
-        success = False
-        while not success:
-            success = _download_dxfile(dxid, filename, part_retry_counter,
-                                       chunksize=csize, append=append,
-                                       show_progress=show_progress, project=project, **kwargs)
-    try:
-        download_with_chunksize(chunksize)
-    except DXIncompleteReadsError:
-        # We were unable to read with large buffers, try again with a small buffer.
-        # This can happen if the data source is slow in sending data.
-        logger.info("Data source is slow, reducing maximal buffer size to %d, and trying again",
-                    dxfile.MIN_BUFFER_SIZE)
-        download_with_chunksize(dxfile.MIN_BUFFER_SIZE)
+    part_retry_counter = defaultdict(lambda: 3)
+    success = False
+    while not success:
+        success = _download_dxfile(dxid, filename, part_retry_counter,
+                                   chunksize=dxfile.MIN_BUFFER_SIZE, append=append,
+                                   show_progress=show_progress, project=project, **kwargs)
 
 
 def _download_dxfile(dxid, filename, part_retry_counter,
@@ -206,7 +197,7 @@ def _download_dxfile(dxid, filename, part_retry_counter,
         for part_id_to_chunk in parts_to_get:
             part_info = parts[part_id_to_chunk]
             for chunk_start in range(part_info["start"], part_info["start"] + part_info["size"], chunksize):
-                chunk_end = min(chunk_start + chunksize, part_info["start"] + part_info["size"]) - 1
+                chunk_end = min(chunk_start + chunksize, part_info["start"] + part_info["size"])
                 yield get_chunk, [part_id_to_chunk, chunk_start, chunk_end], {}
 
     def verify_part(_part_id, got_bytes, hasher):
@@ -262,7 +253,6 @@ def _download_dxfile(dxid, filename, part_retry_counter,
             cur_part, got_bytes, hasher = None, None, None
             dxfile._ensure_http_threadpool()
             for chunk_part, chunk_data in response_iterator(chunk_requests(), dxfile._http_threadpool):
-                print(chunk_data) #DEBUG
                 if chunk_part != cur_part:
                     verify_part(cur_part, got_bytes, hasher)
                     cur_part, got_bytes, hasher = chunk_part, 0, hashlib.md5()
