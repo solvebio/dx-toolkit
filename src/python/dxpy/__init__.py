@@ -645,17 +645,12 @@ class DXHTTPOAuth2(AuthBase):
             raise NotImplementedError("Token types other than bearer are not yet supported")
         return r
 
+
 def _dxhttp_read_range(url, headers, start_pos, end_pos, timeout):
     headers['Range'] = "bytes=" + str(start_pos) + "-" + str(end_pos)
     try:
-        data = DXHTTPRequest(url, '', method= 'GET',
-                             headers= headers,
-                             auth= None,
-                             jsonify_data= False,
-                             prepend_srv= False,
-                             always_retry= True,
-                             timeout= timeout,
-                             decode_response_body= False)
+        data = DXHTTPRequest(url, '', method='GET', headers=headers, auth=None, jsonify_data=False, prepend_srv=False,
+                             always_retry=True, timeout=timeout, decode_response_body=False)
         _raise_error_for_testing('GET')
         return data
 
@@ -669,14 +664,9 @@ def _dxhttp_read_range(url, headers, start_pos, end_pos, timeout):
             subchunk_end_pos = min(subchunk_start_pos + subchunk_len - 1, end_pos)
             headers['Range'] = "bytes=" + str(subchunk_start_pos) + "-" + str(subchunk_end_pos)
             subchunk_start_pos += subchunk_len
-            data = DXHTTPRequest(url, '', method= 'GET',
-                                          headers= headers,
-                                          auth= None,
-                                          jsonify_data= False,
-                                          prepend_srv= False,
-                                          always_retry= True,
-                                          timeout= timeout,
-                                          decode_response_body= False)
+            data = DXHTTPRequest(url, '', method='GET', headers=headers, auth=None, jsonify_data=False,
+                                 prepend_srv=False, always_retry=True, timeout=timeout,
+                                 decode_response_body=False)
 
             # Concatenate sub-chunks
             chunk_buffer.write(data)

@@ -20,7 +20,6 @@
 from __future__ import print_function, unicode_literals, division, absolute_import
 
 import os, unittest, tempfile, filecmp, time, json, sys
-import random
 import string
 import subprocess
 import platform
