@@ -190,14 +190,19 @@ def _download_dxfile(dxid, filename, part_retry_counter,
 
     def get_chunk(part_id_to_get, start, end):
         url, headers = dxfile.get_download_url(project=project, **kwargs)
-        data = dxpy._dxhttp_read_range(url, headers, start, end, FILE_REQUEST_TIMEOUT)
+        # If we're fetching the whole object in one shot, avoid setting the Range header to take advantage of gzip
+        # transfer compression
+        sub_range = False
+        if len(parts) > 1 or (start > 0) or (end - start + 1 < parts[part_id_to_get]["size"]):
+            sub_range = True
+        data = dxpy._dxhttp_read_range(url, headers, start, end, FILE_REQUEST_TIMEOUT, sub_range)
         return part_id_to_get, data
 
     def chunk_requests():
         for part_id_to_chunk in parts_to_get:
             part_info = parts[part_id_to_chunk]
             for chunk_start in range(part_info["start"], part_info["start"] + part_info["size"], chunksize):
-                chunk_end = min(chunk_start + chunksize, part_info["start"] + part_info["size"])
+                chunk_end = min(chunk_start + chunksize, part_info["start"] + part_info["size"]) - 1
                 yield get_chunk, [part_id_to_chunk, chunk_start, chunk_end], {}
 
     def verify_part(_part_id, got_bytes, hasher):

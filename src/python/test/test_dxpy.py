@@ -318,6 +318,8 @@ class TestDXFile(unittest.TestCase):
         self.new_file = tempfile.NamedTemporaryFile(delete=False)
         self.new_file.close()
 
+        self.dxfile = dxpy.DXFile()
+
     def tearDown(self):
         os.remove(self.new_file.name)
 

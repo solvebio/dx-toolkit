@@ -765,10 +765,11 @@ class DXFile(DXDataObject):
                     cur_chunk_size = min(cur_chunk_size * ramp, limit_chunk_size)
                 i += 1
 
-        url, headers = self.get_download_url(project=project, **kwargs)
         for chunk_start_pos, chunk_end_pos in chunk_ranges(start_pos, end_pos):
             url, headers = self.get_download_url(project=project, **kwargs)
-            yield dxpy._dxhttp_read_range, [url, headers, chunk_start_pos, chunk_end_pos, FILE_REQUEST_TIMEOUT], {}
+            # It is possible for chunk_end_pos to be outside of the range of the file
+            yield dxpy._dxhttp_read_range, [url, headers, chunk_start_pos, min(chunk_end_pos, self._file_length - 1),
+                                            FILE_REQUEST_TIMEOUT], {}
 
     def _next_response_content(self):
         self._ensure_http_threadpool()
@@ -861,7 +862,6 @@ class DXFile(DXDataObject):
                 if self._response_iterator is None:
                     self._request_iterator = self._generate_read_requests(
                         start_pos=self._pos, project=project, **kwargs)
-
                 content = self._next_response_content()
 
                 if len(content) < remaining_len:
