@@ -653,7 +653,7 @@ error, and exception is thrown.
 There is special handling if a DXIncompleteReadsError is thrown, for which urllib3 gets only part of the requested
 range from the chunk of data. The range is split into smaller chunks, and each sub-chunk is tried in a DXHTTPRequest.
 The smaller chunks are then concatenated to form the original range of data. If a DXIncompleteReadsError is thrown
-while reading a sub-chunk, then we fail.
+(after retrying the sub-chunk 6 times) while reading a sub-chunk, then we fail.
 '''
 
 
