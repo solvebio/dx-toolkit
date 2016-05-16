@@ -354,7 +354,7 @@ def _maybe_trucate_request(url, try_index, data):
 
 
 def _raise_error_for_testing(try_index=None, method='GET'):
-    if _INJECT_ERROR and method == 'GET':
+    if _INJECT_ERROR and method == 'GET' and randint(0, 9) == 0:
         error_thrown = randint(0, 1)
         if error_thrown == 0 and try_index is None:
             raise exceptions.DXIncompleteReadsError()
