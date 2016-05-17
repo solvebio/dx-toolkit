@@ -168,8 +168,8 @@ class DXFile(DXDataObject):
     _close = staticmethod(dxpy.api.file_close)
     _list_projects = staticmethod(dxpy.api.file_list_projects)
 
-    _http_threadpool = None
     _http_threadpool_size = DXFILE_HTTP_THREADS
+    _http_threadpool = dxpy.utils.get_futures_threadpool(max_workers=_http_threadpool_size)
 
     NO_PROJECT_HINT = 'NO_PROJECT_HINT'
 
@@ -227,7 +227,6 @@ class DXFile(DXDataObject):
         self._url_download_mutex = Lock()
 
         self._request_iterator, self._response_iterator = None, None
-        self._http_threadpool = dxpy.utils.get_futures_threadpool(max_workers=self._http_threadpool_size)
         self._http_threadpool_futures = set()
 
         # Initialize state
