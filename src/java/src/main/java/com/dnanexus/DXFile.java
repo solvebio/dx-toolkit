@@ -159,6 +159,8 @@ public class DXFile extends DXDataObject {
         private String media;
         @JsonProperty
         private Long size;
+        @JsonProperty
+        private Map<Integer, Map<String, Object>> parts;
 
         private Describe() {
             super();
@@ -185,6 +187,28 @@ public class DXFile extends DXDataObject {
                     "file size is not accessible because it was not retrieved with the describe call");
             return size;
         }
+
+        /**
+         * Returns the hexadecimal encoded value of MD5 message-digest of the specified file part.
+         *
+         * @param index part index that was provided by the file upload call
+         *
+         * @return file part md5 digested as a string
+         */
+        public String getMD5(int index) {
+            return (String) parts.get(index).get("md5");
+        }
+
+        /**
+         * Returns the size the specified file part in bytes.
+         *
+         * @param index part index that was provided by the file upload call
+         *
+         * @return size of the file part
+         */
+        public Integer getChunkSize(int index) {
+            return (Integer) parts.get(index).get("size");
+        }
     }
 
     private class FileApiInputStream extends InputStream {
@@ -195,6 +219,8 @@ public class DXFile extends DXDataObject {
         private final long readEnd;
         private int request = 1;
         private ByteArrayInputStream unreadBytes;
+        private ByteArrayOutputStream checksumBuffer = new ByteArrayOutputStream();
+        private int filePart = 1;
 
         private FileApiInputStream(long readStart, long readEnd) {
             // API call returns URL and headers for HTTP GET requests
@@ -266,10 +292,47 @@ public class DXFile extends DXDataObject {
             // verify expected bytes read, namely from unreadBytes.available()
             assert (bytesRead == bytesToRead);
 
+            // Checksum verification
+            checksumBuffer.write(Arrays.copyOfRange(b, off, off + numBytes));
+            Describe partsMetadata = describe(DXDataObject.DescribeOptions.get().withCustomFields("parts"));
+            while (checksumBuffer.size() >= partsMetadata.getChunkSize(filePart)) {
+                // Need to turn OutputStream containing data into readable InputStream
+                // A number of bytes, specified by the file part in the metadata, from the
+                // InputStream is then read into a byte array.
+                ByteArrayInputStream checksumStream = new ByteArrayInputStream(checksumBuffer.toByteArray());
+                byte[] checksumBytes = new byte[partsMetadata.getChunkSize(filePart)];
+                checksumStream.read(checksumBytes, 0, partsMetadata.getChunkSize(filePart));
+
+                // File part's MD5 stored in file's meta data
+                String metadataChecksum = partsMetadata.getMD5(filePart);
+
+                // Verify that MD5 of the downloaded data is the same as the MD5 in the metadata
+                try {
+                    assert (DigestUtils.md5Hex(checksumBytes).equals(metadataChecksum));
+                } catch (AssertionError e) {
+                    throw new IOException(e);
+                }
+
+                // Data not used in the checksum is copied into the buffer
+                checksumBuffer = new ByteArrayOutputStream();
+                if (checksumStream.available() > 0) {
+                    IOUtils.copyLarge(checksumStream, checksumBuffer);
+                }
+                filePart++;
+
+                // Determine whether there are still file parts to check
+                try {
+                    partsMetadata.getMD5(filePart);
+                } catch (NullPointerException e) {
+                    break;
+                }
+            }
+
             // Increment byte range from request for next chunk of data to buffer
             if (unreadBytes.available() == 0) {
                 nextByteFromApi = endRange + 1;
                 request++;
+
             }
 
             return bytesToRead;
