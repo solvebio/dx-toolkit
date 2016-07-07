@@ -28,6 +28,9 @@ $env:PATH = "C:/Python27;$env:DNANEXUS_HOME/bin;$env:DNANEXUS_HOME/python27/Scri
 # Add our custom Lib dir to PYTHONPATH so the dx*.exe wrappers can locate dxpy
 $env:PYTHONPATH = "$env:DNANEXUS_HOME/python27/Lib/site-packages;" + $env:PYTHONPATH
 
+# Set utf-8 as default IO encoding
+$env:PYTHONIOENCODING = "utf-8"
+
 # Print banner
 "DNAnexus CLI initialized. For help, run: 'dx help'"
 ""
