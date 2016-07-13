@@ -310,6 +310,9 @@ class TestDXClient(DXTestCase):
     def test_dx_set_details(self):
         record_id = run("dx new record Ψ1 --brief").strip()
         run("dx set_details Ψ1 '{\"foo\": \"bar\"}'")
+        # In Python 3.5, do:
+        #cmd = ["dx", "set_details", "Ψ1", '{"foo":"bar"}']
+        #run(cmd)
         dxrecord = dxpy.DXRecord(record_id)
         details = dxrecord.get_details()
         self.assertEqual({"foo": "bar"}, details, msg="dx set_details with valid JSON string input failed.")
