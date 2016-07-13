@@ -143,7 +143,7 @@ pynsist_installer: toolkit_version $(DNANEXUS_HOME)/bin/dx dx-verify-file jq ua
 	# Copy wheel file into place
 	cp "$(DNANEXUS_HOME)"/src/python/dist/dxpy-*whl "$(DNANEXUS_HOME)"/build/pynsist_files/dxpy-1-py2.py3-none-any.whl
 	# Install the pynsist package and use it to build a Windows installer
-	unset PYTHONPATH; source "$(DX_PY_ENV)/$(ACTIVATE)"; python -m pip install pynsist==1.6
+	unset PYTHONPATH; source "$(DX_PY_ENV)/$(ACTIVATE)"; python -m pip install pynsist==1.7
 	unset PYTHONPATH; source "$(DX_PY_ENV)/$(ACTIVATE)"; pynsist "$(DNANEXUS_HOME)"/build/pynsist_files/installer.cfg
 	# Copy .exe installer to dx-toolkit root once it's ready
 	cp "$(DNANEXUS_HOME)"/build/pynsist_files/build/nsis/DNAnexus_CLI_installer.exe "$(DNANEXUS_HOME)"

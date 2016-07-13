@@ -22,11 +22,11 @@ $script:THIS_PATH = $myinvocation.mycommand.path
 $script:BASE_DIR = split-path (resolve-path "$THIS_PATH") -Parent
 $env:DNANEXUS_HOME = $BASE_DIR
 
-# Add bin and Scripts dirs to PATH so dx*.exe are available
-$env:PATH = "C:/Python27;$env:DNANEXUS_HOME/bin;$env:DNANEXUS_HOME/python27/Scripts;" + $env:PATH
+# Activate virtualenv containing dxpy
+& ($env:DNANEXUS_HOME + "\dxenv\Scripts\activate.ps1")
 
-# Add our custom Lib dir to PYTHONPATH so the dx*.exe wrappers can locate dxpy
-$env:PYTHONPATH = "$env:DNANEXUS_HOME/python27/Lib/site-packages;" + $env:PYTHONPATH
+# Add DNAnexus bin dir to PATH so dx-verify-file.exe and friends are available
+$env:PATH = "$env:DNANEXUS_HOME/bin;" + $env:PATH
 
 # Set utf-8 as default IO encoding
 $env:PYTHONIOENCODING = "utf-8"

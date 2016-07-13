@@ -1,6 +1,8 @@
 ; dx-toolkit NSIS installer config file - based on default pynsist template:
 ; https://github.com/takluyver/pynsist/blob/master/nsist/pyapp.nsi
 
+!define VIRTUALENV_NAME "dxenv"
+
 !define PRODUCT_NAME "[[ib.appname]]"
 !define PRODUCT_VERSION "[[ib.version]]"
 !define PY_VERSION "[[ib.py_version]]"
@@ -103,9 +105,20 @@ Section "!${PRODUCT_NAME}" sec_app
   ;  MessageBox MB_OK "Can't set PYTHONPATH environment variable!"
   ;done:
 
+  DetailPrint "Creating virtualenv environment..."
+  ExecWait '"$LOCALAPPDATA\Programs\Python\Python35-32\Scripts\virtualenv.exe" "$INSTDIR\${VIRTUALENV_NAME}"' $0
+  StrCmp $0 0 venv_pass venv_error
+  venv_pass:
+    ;MessageBox MB_OK 'dxpy installed'
+    ;MessageBox MB_OK 'ExecWait returned "$0"'
+    Goto venv_done
+  venv_error:
+    MessageBox MB_OK 'Error: virtualenv creation failed!'
+    MessageBox MB_OK 'ExecWait returned "$0"'
+  venv_done:
+
   DetailPrint "Installing dxpy..."
-  ; Install dxpy, its dependencies, and console scripts in $INSTDIR\python27
-  ExecWait '"C:\Python27\Scripts\pip.exe" install --root "$INSTDIR" "$INSTDIR\dxpy-1-py2.py3-none-any.whl"' $0
+  ExecWait '"$INSTDIR\${VIRTUALENV_NAME}\Scripts\activate.bat" && pip install "$INSTDIR\dxpy-1-py2.py3-none-any.whl"' $0
   StrCmp $0 0 pass error 
   pass:
     ;MessageBox MB_OK 'dxpy installed'
@@ -140,10 +153,12 @@ Section "!${PRODUCT_NAME}" sec_app
 SectionEnd
 
 Section "Uninstall"
-  DetailPrint "Uninstalling dxpy root..."
-  RMDir /r "$INSTDIR\python27"
+  ;DetailPrint "Uninstalling dxpy root..."
+  ;RMDir /r "$INSTDIR\python27"
   DetailPrint "Uninstalling bin dir..."
   RMDir /r "$INSTDIR\bin"
+  DetailPrint "Uninstalling virtualenv env dir..."
+  RMDir /r "$INSTDIR\${VIRTUALENV_NAME}"
 
   SetShellVarContext all
   Delete $INSTDIR\uninstall.exe
