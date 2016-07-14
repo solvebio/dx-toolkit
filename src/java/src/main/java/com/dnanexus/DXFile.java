@@ -206,8 +206,8 @@ public class DXFile extends DXDataObject {
          *
          * @return size of the file part
          */
-        public Integer getChunkSize(int index) {
-            return (Integer) parts.get(index).get("size");
+        public int getChunkSize(int index) {
+            return (int) parts.get(index).get("size");
         }
     }
 
@@ -285,23 +285,12 @@ public class DXFile extends DXDataObject {
                 unreadBytes = new ByteArrayInputStream(partDownloadRequest(apiResponse.url, startRange, endRange));
             }
 
-            assert (unreadBytes != null && unreadBytes.available() > 0);
-            int bytesToRead = Math.min(numBytes, unreadBytes.available());
-            int bytesRead = unreadBytes.read(b, off, bytesToRead);
-
-            // verify expected bytes read, namely from unreadBytes.available()
-            assert (bytesRead == bytesToRead);
-
             // Checksum verification
-            checksumBuffer.write(Arrays.copyOfRange(b, off, off + numBytes));
             Describe partsMetadata = describe(DXDataObject.DescribeOptions.get().withCustomFields("parts"));
-            while (checksumBuffer.size() >= partsMetadata.getChunkSize(filePart)) {
-                // Need to turn OutputStream containing data into readable InputStream
-                // A number of bytes, specified by the file part in the metadata, from the
-                // InputStream is then read into a byte array.
-                ByteArrayInputStream checksumStream = new ByteArrayInputStream(checksumBuffer.toByteArray());
-                byte[] checksumBytes = new byte[partsMetadata.getChunkSize(filePart)];
-                checksumStream.read(checksumBytes, 0, partsMetadata.getChunkSize(filePart));
+            int filePartSize = partsMetadata.getChunkSize(filePart);
+            if (unreadBytes.available() >= filePartSize) {
+                byte[] checksumBytes = new byte[filePartSize];
+                int bytesRead = unreadBytes.read(checksumBytes, 0, filePartSize);
 
                 // File part's MD5 stored in file's meta data
                 String metadataChecksum = partsMetadata.getMD5(filePart);
@@ -313,29 +302,71 @@ public class DXFile extends DXDataObject {
                     throw new IOException(e);
                 }
 
-                // Data not used in the checksum is copied into the buffer
-                checksumBuffer = new ByteArrayOutputStream();
-                if (checksumStream.available() > 0) {
-                    IOUtils.copyLarge(checksumStream, checksumBuffer);
-                }
+                assert(checksumBytes != null);
+                assert(bytesRead == filePartSize);
+
                 filePart++;
-
-                // Determine whether there are still file parts to check
-                try {
-                    partsMetadata.getMD5(filePart);
-                } catch (NullPointerException e) {
-                    break;
-                }
-            }
-
-            // Increment byte range from request for next chunk of data to buffer
-            if (unreadBytes.available() == 0) {
                 nextByteFromApi = endRange + 1;
                 request++;
-
+                return bytesRead;
             }
 
-            return bytesToRead;
+            assert(unreadBytes.available() < filePartSize);
+            nextByteFromApi = endRange + 1;
+            request++;
+            return 0;
+
+
+//            checksumBuffer.write(Arrays.copyOfRange(b, off, off + numBytes));
+//            Describe partsMetadata = describe(DXDataObject.DescribeOptions.get().withCustomFields("parts"));
+//            while (checksumBuffer.size() >= partsMetadata.getChunkSize(filePart)) {
+//                // Need to turn OutputStream containing data into readable InputStream
+//                // A number of bytes, specified by the file part in the metadata, from the
+//                // InputStream is then read into a byte array.
+//                ByteArrayInputStream checksumStream = new ByteArrayInputStream(checksumBuffer.toByteArray());
+//                byte[] checksumBytes = new byte[partsMetadata.getChunkSize(filePart)];
+//                checksumStream.read(checksumBytes, 0, partsMetadata.getChunkSize(filePart));
+//
+//                // File part's MD5 stored in file's meta data
+//                String metadataChecksum = partsMetadata.getMD5(filePart);
+//
+//                // Verify that MD5 of the downloaded data is the same as the MD5 in the metadata
+//                try {
+//                    assert (DigestUtils.md5Hex(checksumBytes).equals(metadataChecksum));
+//                } catch (AssertionError e) {
+//                    throw new IOException(e);
+//                }
+//
+//                // Data not used in the checksum is copied into the buffer
+//                checksumBuffer = new ByteArrayOutputStream();
+//                if (checksumStream.available() > 0) {
+//                    IOUtils.copyLarge(checksumStream, checksumBuffer);
+//                }
+//                filePart++;
+//
+//                // Determine whether there are still file parts to check
+//                try {
+//                    partsMetadata.getMD5(filePart);
+//                } catch (NullPointerException e) {
+//                    break;
+//                }
+//            }
+//
+//            assert (unreadBytes != null && unreadBytes.available() > 0);
+//            int bytesToRead = Math.min(numBytes, unreadBytes.available());
+//            int bytesRead = unreadBytes.read(b, off, bytesToRead);
+//
+//            // verify expected bytes read, namely from unreadBytes.available()
+//            assert (bytesRead == bytesToRead);
+//
+//            // Increment byte range from request for next chunk of data to buffer
+//            if (unreadBytes.available() == 0) {
+//                nextByteFromApi = endRange + 1;
+//                request++;
+//
+//            }
+
+//            return bytesToRead;
         }
     }
 
