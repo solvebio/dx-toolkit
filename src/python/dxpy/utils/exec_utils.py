@@ -272,6 +272,8 @@ class DXExecDependencyInstaller(object):
     def __init__(self, executable_desc, job_desc, logger=None):
         if "runSpec" not in executable_desc:
             raise DXExecDependencyError('Expected field "runSpec" to be present in executable description"')
+        if "region" not in job_desc and "project" not in job_desc:
+            raise DXExecDependencyError("Expected at least one of 'region' or 'project' in job description")
 
         self.exec_desc = executable_desc
         self.run_spec = executable_desc["runSpec"]
