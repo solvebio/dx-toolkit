@@ -213,7 +213,7 @@ class TestDXExecDependsUtils(unittest.TestCase):
             ],
 
             "aws:us-west-1": [
-                {"name": "asset.east", "id": {"$dnanexus_link": "file-assetwest"}}
+                {"name": "asset.west", "id": {"$dnanexus_link": "file-assetwest"}}
             ]
         }
         edi = get_edi({"bundledDependsByRegion": bundled_depends_by_region},
