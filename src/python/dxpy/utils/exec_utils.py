@@ -280,7 +280,7 @@ class DXExecDependencyInstaller(object):
         self.logger = logger
 
         self.dep_groups = []
-        for dep in itertools.chain(self.run_spec.get("bundledDepends", []),
+        for dep in itertools.chain(self.__get_local_bundled_dependencies(),
                                    self.run_spec.get("execDepends", []),
                                    self.run_spec.get("dependencies", [])):
             self._validate_dependency(dep)
@@ -293,6 +293,20 @@ class DXExecDependencyInstaller(object):
             if len(self.dep_groups) == 0 or self.dep_groups[-1]["type"] != dep_type or dep_type not in self.group_pms:
                 self.dep_groups.append({"type": dep_type, "deps": [], "index": len(self.dep_groups)})
             self.dep_groups[-1]["deps"].append(dep)
+
+    def __get_local_bundled_dependencies(self):
+        # Resolve the local bundled dependencies for this job.
+        job_region = self.job_desc.get("region")
+        if job_region is None:
+            # For backward compatibility.
+            project_region = dxpy.get_handler(self.job_desc["project"]).describe()["region"]
+            job_region = project_region
+
+        bundled_depends_by_region = self.run_spec.get("bundledDependsByRegion")
+        if bundled_depends_by_region is None:
+            return self.run_spec.get("bundledDepends", [])
+        else:
+            return bundled_depends_by_region[job_region]
 
     def log(self, message):
         if self.logger:
