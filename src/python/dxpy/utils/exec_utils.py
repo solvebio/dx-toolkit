@@ -280,7 +280,7 @@ class DXExecDependencyInstaller(object):
         self.logger = logger
 
         self.dep_groups = []
-        for dep in itertools.chain(self.__get_local_bundled_dependencies(),
+        for dep in itertools.chain(self._get_local_bundled_dependencies(),
                                    self.run_spec.get("execDepends", []),
                                    self.run_spec.get("dependencies", [])):
             self._validate_dependency(dep)
