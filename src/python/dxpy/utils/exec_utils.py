@@ -294,7 +294,7 @@ class DXExecDependencyInstaller(object):
                 self.dep_groups.append({"type": dep_type, "deps": [], "index": len(self.dep_groups)})
             self.dep_groups[-1]["deps"].append(dep)
 
-    def __get_local_bundled_dependencies(self):
+    def _get_local_bundled_dependencies(self):
         # Resolve the local bundled dependencies for this job.
         job_region = self.job_desc.get("region")
         if job_region is None:
