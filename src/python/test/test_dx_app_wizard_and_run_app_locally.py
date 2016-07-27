@@ -368,7 +368,7 @@ class TestDXAppWizardAndRunAppLocally(DXTestCase):
             output = subprocess.check_output(['dx-run-app-locally', appdir] + cmdline_args)
             print(output)
             # Verify array is printed total 3 times once in each input, logs, and final output
-            self.assertEquals(len(re.split("required_array_boolean = \[ true, false ]", output)), 4)
+            self.assertEquals(len(re.findall("required_array_boolean = \[ true, false ]", output)), 3)
             self.assertIn("App finished successfully", output)
 
             # See PTFM-13697 for CentOS 5 details
