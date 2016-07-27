@@ -27,6 +27,10 @@ def get_interpreter():
 def get_path():
     return 'bash'
 
+
+def get_array_output_str(output_param_name, output_param_class):
+    return '    for i in "${!' + output_param_name + '[@]}"; do\n        dx-jobutil-add-output ' + output_param_name + ' "${' + output_param_name + '[$i]}" --class=' + output_param_class + '\n    done'
+
 def get_strings(app_json,
                 required_file_input_names, optional_file_input_names,
                 required_file_array_input_names, optional_file_array_input_names,
@@ -72,7 +76,7 @@ and add output variables to your job's output as appropriate for the output clas
 \"dx-jobutil-add-output -h\" for more information on what it does.''',
                            initial_indent='    # ', subsequent_indent='    # ', width=80) + '\n\n'
         outputs_str += "\n".join(["    dx-jobutil-add-output " + output_param['name'] + ' "$' + output_param['name'] + '" --class=' + output_param['class'] if 'array' not in output_param['class']
-                                  else '    for i in "${!' + output_param['name'] + '[@]}"; do\n        dx-jobutil-add-output ' + output_param['name'] + ' "${' + output_param['name'] + '[$i]}" --class=' + output_param['class'] + '\n    done'
+                                  else get_array_output_str(output_param['name'], output_param['class'])
                                   for output_param in app_json['outputSpec']])
     elif 'outputSpec' not in app_json:
         outputs_str = "\n" + fill('''No output spec is specified, but

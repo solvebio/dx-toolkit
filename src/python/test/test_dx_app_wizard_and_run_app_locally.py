@@ -367,7 +367,7 @@ class TestDXAppWizardAndRunAppLocally(DXTestCase):
             # Test with bare-minimum of inputs
             output = subprocess.check_output(['dx-run-app-locally', appdir] + cmdline_args)
             print(output)
-            # Verify arrays are displayed properly
+            # Verify array is printed total 3 times once in each input, logs, and final output
             self.assertEquals(len(re.split("required_array_boolean = \[ true, false ]", output)), 4)
             self.assertIn("App finished successfully", output)
 
