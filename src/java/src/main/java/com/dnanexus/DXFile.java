@@ -196,7 +196,9 @@ public class DXFile extends DXDataObject {
         private int request = 1;
         private ByteArrayInputStream unreadBytes;
 
-        private FileApiInputStream(long readStart, long readEnd) {
+        private final PartDownloader downloader;
+
+        private FileApiInputStream(long readStart, long readEnd, PartDownloader downloader) {
             // API call returns URL and headers for HTTP GET requests
             JsonNode output = apiCallOnObject("download", MAPPER.valueToTree(new FileDownloadRequest(true)),
                     RetryStrategy.SAFE_TO_RETRY);
@@ -212,6 +214,7 @@ public class DXFile extends DXDataObject {
             Preconditions.checkArgument(readEnd >= readStart, "The start byte cannot be larger than the end byte");
             this.readEnd = readEnd;
             this.nextByteFromApi = readStart;
+            this.downloader = downloader;
         }
 
         @Override
@@ -256,7 +259,7 @@ public class DXFile extends DXDataObject {
 
             // Request more data to buffer
             if (unreadBytes == null || unreadBytes.available() == 0) {
-                unreadBytes = new ByteArrayInputStream(partDownloadRequest(apiResponse.url, startRange, endRange));
+                unreadBytes = new ByteArrayInputStream(this.downloader.get(apiResponse.url, startRange, endRange));
             }
 
             assert (unreadBytes != null && unreadBytes.available() > 0);
@@ -380,6 +383,43 @@ public class DXFile extends DXDataObject {
         private String url;
     }
 
+    private static class HttpPartDownloader implements PartDownloader {
+        @Override
+        public byte[] get(String url, long start, long end) throws ClientProtocolException, IOException {
+            Preconditions.checkState(end - start <= (long) 2 * 1024 * 1024 * 1024,
+                    "Download chunk size cannot be larger than 2GB");
+            HttpClient httpclient = HttpClientBuilder.create().setUserAgent(USER_AGENT).build();
+
+            // HTTP GET request with bytes/_ge range header
+            HttpGet request = new HttpGet(url);
+            request.addHeader("Range", "bytes=" + start + "-" + end);
+
+            HttpResponse response = executeRequestWithRetry(httpclient, request);
+            InputStream content = response.getEntity().getContent();
+
+            return IOUtils.toByteArray(content);
+        }
+    }
+
+    @VisibleForTesting
+    interface PartDownloader {
+        /**
+         * Perform an HTTP GET request to download part of the file.
+         *
+         * @param url URL to which an HTTP GET request is made to download the file
+         * @param chunkStart beginning of the part (in the byte array containing the file contents) to
+         *        be downloaded. This index is inclusive in the range.
+         * @param chunkEnd end of the part (in the byte array containing the file contents) to be
+         *        downloaded. This index is inclusive in the range.
+         *
+         * @return byte array containing the part of the file contents that is downloaded
+         *
+         * @throws ClientProtocolException HTTP request to the download URL cannot be executed
+         * @throws IOException unable to get file contents from HTTP response
+         */
+        byte[] get(String url, long start, long end) throws ClientProtocolException, IOException;
+    }
+
     private static final String USER_AGENT = DXUserAgent.getUserAgent();
 
     /**
@@ -501,36 +541,6 @@ public class DXFile extends DXDataObject {
      */
     public static Builder newFileWithEnvironment(DXEnvironment env) {
         return new Builder(env);
-    }
-
-    /**
-     * HTTP GET request to download part of the file.
-     *
-     * @param url URL to which an HTTP GET request is made to download the file
-     * @param chunkStart beginning of the part (in the byte array containing the file contents) to
-     *        be downloaded. This index is inclusive in the range.
-     * @param chunkEnd end of the part (in the byte array containing the file contents) to be
-     *        downloaded. This index is inclusive in the range.
-     *
-     * @return byte array containing the part of the file contents that is downloaded
-     *
-     * @throws ClientProtocolException HTTP request to the download URL cannot be executed
-     * @throws IOException unable to get file contents from HTTP response
-     */
-    private static byte[] partDownloadRequest(String url, long start, long end)
-            throws ClientProtocolException, IOException {
-        Preconditions.checkState(end - start <= (long) 2 * 1024 * 1024 * 1024,
-                "Download chunk size cannot be larger than 2GB");
-        HttpClient httpclient = HttpClientBuilder.create().setUserAgent(USER_AGENT).build();
-
-        // HTTP GET request with bytes/_ge range header
-        HttpGet request = new HttpGet(url);
-        request.addHeader("Range", "bytes=" + start + "-" + end);
-
-        HttpResponse response = executeRequestWithRetry(httpclient, request);
-        InputStream content = response.getEntity().getContent();
-
-        return IOUtils.toByteArray(content);
     }
 
     /**
@@ -672,7 +682,17 @@ public class DXFile extends DXDataObject {
      * @return stream containing file contents within range specified
      */
     public InputStream getDownloadStream(long start, long end) {
-        return new FileApiInputStream(start, end);
+        return new FileApiInputStream(start, end, new HttpPartDownloader());
+    }
+
+    @VisibleForTesting
+    InputStream getDownloadStream(long start, long end, PartDownloader downloader) {
+        return new FileApiInputStream(start, end, downloader);
+    }
+
+    @VisibleForTesting
+    InputStream getDownloadStream(PartDownloader downloader) {
+        return getDownloadStream(0, -1, downloader);
     }
 
     /**
