@@ -2119,7 +2119,11 @@ def find_executions(args):
     try:
         num_processed_results = 0
         roots = collections.OrderedDict()
+        print(json.dumps(query, indent=2))
         for execution_result in dxpy.find_executions(**query):
+            print(json.dumps(execution_result, indent=2))
+            print(args)
+            print("\n\n\n\n\n")
             if args.trees:
                 if args.classname == 'job':
                     root = execution_result['describe']['originJob']
@@ -2138,6 +2142,7 @@ def find_executions(args):
                 json_output.append(execution_result['describe'])
             elif args.trees:
                 roots[root] = root
+                print(roots)
                 if args.classname == 'analysis' and root.startswith('job-'):
                     # Analyses in trees with jobs at their root found in "dx find analyses" are displayed unrooted,
                     # and only the last analysis found is displayed.
@@ -2149,6 +2154,7 @@ def find_executions(args):
                                                                  has_children=False,
                                                                  single_result=True,
                                                                  show_outputs=args.show_outputs)))
+        print(json.dumps(roots, indent=2))
         if args.trees:
             executions_by_parent, descriptions = collections.defaultdict(list), {}
             root_field = 'origin_job' if args.classname == 'job' else 'root_execution'
@@ -2184,7 +2190,6 @@ def find_executions(args):
                             executions_by_parent[execution_result['id']].append(stage_desc['execution']['id'])
                             if stage_desc['execution']['id'] not in descriptions:
                                 descriptions[stage_desc['execution']['id']] = stage_desc['execution']
-
             # Short-circuit the find_execution API call(s) if there are
             # no root executions (and therefore we would have gotten 0
             # results anyway)
@@ -2196,6 +2201,10 @@ def find_executions(args):
                 sorted_roots = sorted(roots.values(), key=lambda x: -descriptions[x]['created'])
 
                 for root in sorted_roots:
+                    # print(json.dumps(descriptions, indent=2))
+                    # print(json.dumps(roots, indent=2))
+                    # print(json.dumps(sorted_roots, indent=2))
+                    # print(json.dumps(root, indent=2))
                     process_tree(descriptions[roots[root]], executions_by_parent, descriptions)
         if args.json:
             print(json.dumps(json_output, indent=4))

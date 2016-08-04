@@ -3967,8 +3967,71 @@ class TestDXClientFind(DXTestCase):
 
     @unittest.skipUnless(testutil.TEST_RUN_JOBS,
                          'skipping test that would run a job')
+    def test_cloud_workstation(self):
+        dxapplet = dxpy.DXApplet()
+        p = subprocess.Popen(['xclip', '-selection', 'c'], stdin=subprocess.PIPE)
+        p.stdin.write("clear && dx select " + dxapplet.get_proj_id() + '\n')
+        p.stdin.close()
+        p.wait()
+
+        workflow_id = run("dx new workflow sleep_workflow --brief").strip()
+        dxapplet.new(name="workflow_runner",
+                     dxapi="1.0.0",
+                     inputSpec=[],
+                     outputSpec=[],
+                     runSpec={"code": "dx run " + workflow_id,
+                              "interpreter": "bash",
+                              "execDepends": [{"name": "dx-toolkit"}]})
+        applet_id = dxpy.api.applet_new(dict(name="sleep",
+                                             runSpec={"code": "sleep 1200",
+                                                      "interpreter": "bash",
+                                                      "execDepends": [{"name": "dx-toolkit"}]},
+                                             inputSpec=[], outputSpec=[],
+                                             dxapi="1.0.0", version="1.0.0",
+                                             project=self.project))["id"]
+        stage_id = dxpy.api.workflow_add_stage(workflow_id,
+                                               {"editVersion": 0, "executable": applet_id})['stage']
+        job_id = dxapplet.run(applet_input={}).describe(fields={"id": True})["id"]
+        print(stage_id)
+        cd("{project_id}:/".format(project_id=dxapplet.get_proj_id()))
+        executions = [stage_id]
+        t = 0
+        while True:
+            if dxpy.api.job_describe(job_id, {})['dependsOn']:
+                analysis_id = dxpy.api.job_describe(job_id, {})['dependsOn']
+                break;
+            else:
+                print(".")
+                t += 1
+                if t > 120:
+                    raise Exception("Timeout while waiting for job to be created for an analysis stage")
+                time.sleep(1)
+        while True:
+            run("dx find analyses --project=" + dxapplet.get_proj_id(), also_return_stderr=True)
+            time.sleep(600)
+        # self.assertEqual(len(run("dx find analyses --project=" + dxapplet.get_proj_id()).splitlines()), 2)
+        time.sleep(600)
+
+        with self.configure_ssh() as wd:
+            print(wd + "/.dnanexus_config/ssh_id")
+            dx = pexpect.spawn("dx run app-cloud_workstation --ssh -y", env=override_environment(HOME=wd))
+            dx.logfile = sys.stdout
+            dx.setwinsize(20, 90)
+            dx.expect("Select an SSH key pair")
+            print('here')
+            time.sleep(600)
+        print(run("dx run app-cloud_workstation --ssh -y"))
+        time.sleep(60)
+
+    @unittest.skipUnless(testutil.TEST_RUN_JOBS,
+                         'skipping test that would run a job')
     def test_find_executions(self):
         dxapplet = dxpy.DXApplet()
+        p = subprocess.Popen(['xclip', '-selection', 'c'], stdin=subprocess.PIPE)
+        p.stdin.write("clear && dx select " + dxapplet.get_proj_id() + '\n')
+        p.stdin.close()
+        p.wait()
+
         dxapplet.new(name="test_applet",
                      dxapi="1.0.0",
                      inputSpec=[{"name": "chromosomes", "class": "record"},
@@ -3993,7 +4056,6 @@ class TestDXClientFind(DXTestCase):
                              properties={"foo": "baz"})
 
         cd("{project_id}:/".format(project_id=dxapplet.get_proj_id()))
-
         # Wait for job to be created
         executions = [stage['execution']['id'] for stage in dxanalysis.describe()['stages']]
         t = 0
@@ -4006,12 +4068,15 @@ class TestDXClientFind(DXTestCase):
                 if t > 20:
                     raise Exception("Timeout while waiting for job to be created for an analysis stage")
                 time.sleep(1)
+        time.sleep(600)
 
         options = "--user=self"
         self.assertEqual(len(run("dx find executions "+options).splitlines()), 8)
         self.assertEqual(len(run("dx find jobs "+options).splitlines()), 6)
         self.assertEqual(len(run("dx find analyses "+options).splitlines()), 2)
         options += " --project="+dxapplet.get_proj_id()
+        print(options)
+        time.sleep(600)
         self.assertEqual(len(run("dx find executions "+options).splitlines()), 8)
         self.assertEqual(len(run("dx find jobs "+options).splitlines()), 6)
         self.assertEqual(len(run("dx find analyses "+options).splitlines()), 2)
