@@ -34,7 +34,7 @@ import dxpy
 from dxpy.scripts import dx_build_app
 from dxpy_testutil import (DXTestCase, DXTestCaseBuildApps, check_output, temporary_project,
                            select_project, cd, override_environment, generate_unique_username_email,
-                           without_project_context, without_auth, as_second_user, chdir, run)
+                           without_project_context, without_auth, as_second_user, chdir, run, DXCalledProcessError)
 import dxpy_testutil as testutil
 from dxpy.exceptions import DXAPIError, DXSearchError, EXPECTED_ERR_EXIT_STATUS, HTTPError
 from dxpy.compat import str, sys_encoding, open
@@ -143,7 +143,7 @@ class TestDXRemove(DXTestCase):
         record_name2 = "test_folder2"
 
         # Throw error on non-existent folder
-        with self.assertSubprocessFailure(exit_code=1):
+        with self.assertSubprocessFailure(exit_code=3):
             run("dx rm -r {f}".format(f=folder_name))
 
         # make folder and file of the same name, confirm that file is deleted with regular rm call
@@ -159,7 +159,7 @@ class TestDXRemove(DXTestCase):
         with self.assertRaises(DXSearchError):
             dxpy.find_one_data_object(classname="record", describe=True, project=self.project)
         # if no -r flag provided, should throw error since it's a folder
-        with self.assertSubprocessFailure(exit_code=1):
+        with self.assertSubprocessFailure(exit_code=3):
             run("dx rm {f}".format(f=record_name))
         # finally remove the folder
         run("dx rm -r {f}".format(f=record_name))
@@ -171,7 +171,7 @@ class TestDXRemove(DXTestCase):
                           dxpy.find_one_data_object(classname="record",
                                                     describe=True,
                                                     project=self.project)['describe']['name'])
-        with self.assertSubprocessFailure(exit_code=1):
+        with self.assertSubprocessFailure(exit_code=3):
             run("dx rm {f} {f2}".format(f=record_name, f2=record_name2))
 
 
@@ -243,6 +243,25 @@ class TestDXClient(DXTestCase):
         run("dx find analyses --project :")
         run("dx find data --project :")
 
+    def test_windows_pager(self):
+        with self.assertRaises(DXCalledProcessError):
+            original_path = os.environ['PATH']
+            try:
+                path_items = original_path.split(";")
+                new_path = ""
+                # Remove gnu tools from Path
+                for i in path_items:
+                    if "MinGW" not in i:
+                        new_path += i + ";"
+
+                os.environ['PATH'] = new_path
+                check_output("dx")
+            except DXCalledProcessError as e:
+                self.assertNotIn("'less' is not recognized", e.output)
+                raise e
+            finally:
+                os.environ['PATH'] = original_path
+
     def test_get_unicode_url(self):
         with self.assertSubprocessFailure(stderr_regexp="ResourceNotFound", exit_code=3):
             run("dx api project-эксперимент describe")
@@ -281,7 +300,7 @@ class TestDXClient(DXTestCase):
         run("dx new record Ψ")
         run("dx add_types Ψ abc xyz")
         with self.assertSubprocessFailure(stderr_text="be an array of valid strings for a type name",
-                                          exit_code=1):
+                                          exit_code=3):
             run("dx add_types Ψ ΨΨ")
         run("dx remove_types Ψ abc xyz")
         run("dx remove_types Ψ abc xyz")
@@ -761,13 +780,17 @@ class TestDXClient(DXTestCase):
                 dxpy.api.user_update(user_id, {"sshPublicKey": original_ssh_public_key})
 
     @contextmanager
-    def configure_ssh(self):
+    def configure_ssh(self, use_alternate_config_dir=False):
         original_ssh_public_key = None
         try:
+            config_subdir = "dnanexus_config_alternate" if use_alternate_config_dir else ".dnanexus_config"
             user_id = dxpy.whoami()
             original_ssh_public_key = dxpy.api.user_describe(user_id).get('sshPublicKey')
             wd = tempfile.mkdtemp()
-            os.mkdir(os.path.join(wd, ".dnanexus_config"))
+            config_dir = os.path.join(wd, config_subdir)
+            os.mkdir(config_dir)
+            if use_alternate_config_dir:
+                os.environ["DX_USER_CONF_DIR"] = config_dir
 
             dx_ssh_config = pexpect.spawn("dx ssh_config", env=override_environment(HOME=wd))
             dx_ssh_config.logfile = sys.stdout
@@ -786,57 +809,177 @@ class TestDXClient(DXTestCase):
 
     @unittest.skipUnless(testutil.TEST_RUN_JOBS, "Skipping test that would run jobs")
     def test_dx_ssh(self):
-        with self.configure_ssh() as wd:
-            sleep_applet = dxpy.api.applet_new(dict(name="sleep",
-                                                    runSpec={"code": "sleep 1200",
-                                                             "interpreter": "bash",
-                                                             "execDepends": [{"name": "dx-toolkit"}]},
-                                                    inputSpec=[], outputSpec=[],
-                                                    dxapi="1.0.0", version="1.0.0",
-                                                    project=self.project))["id"]
+        for use_alternate_config_dir in [False, True]:
+            with self.configure_ssh(use_alternate_config_dir=use_alternate_config_dir) as wd:
+                sleep_applet = dxpy.api.applet_new(dict(name="sleep",
+                                                        runSpec={"code": "sleep 1200",
+                                                                 "interpreter": "bash",
+                                                                 "execDepends": [{"name": "dx-toolkit"}]},
+                                                        inputSpec=[], outputSpec=[],
+                                                        dxapi="1.0.0", version="1.0.0",
+                                                        project=self.project))["id"]
 
-            dx = pexpect.spawn("dx run {} --yes --ssh".format(sleep_applet),
+                dx = pexpect.spawn("dx run {} --yes --ssh".format(sleep_applet),
+                                   env=override_environment(HOME=wd))
+                dx.logfile = sys.stdout
+                dx.setwinsize(20, 90)
+                dx.expect("Waiting for job")
+                dx.expect("Resolving job hostname and SSH host key", timeout=1200)
+
+                # Wait for the line displayed between the first and second MOTDs,
+                # since we only care about checking the second set of MOTD lines.
+                # Example of the dividing line:
+                # dnanexus@job-BP90K3Q0X2v81PXXPZj005Zj.dnanex.us (10.0.0.200) - byobu
+                dx.expect(["dnanexus.io \(10.0.0.200\) - byobu",
+                           "dnanex.us \(10.0.0.200\) - byobu"], timeout=120)
+                dx.expect("This is the DNAnexus Execution Environment", timeout=600)
+                # Check for job name (e.g. "Job: sleep")
+                dx.expect("Job: \x1b\[1msleep", timeout=5)
+                # \xf6 is ö
+                dx.expect("Project: dxclient_test_pr\xf6ject".encode(sys_encoding))
+                dx.expect("The job is running in terminal 1.", timeout=5)
+                # Check for terminal prompt and verify we're in the container
+                job_id = dxpy.find_jobs(name="sleep", project=self.project).next()['id']
+                dx.expect(("dnanexus@%s" % job_id), timeout=10)
+
+                expected_history_filename = os.path.join(
+                        os.environ.get("DX_USER_CONF_DIR", os.path.join(wd, ".dnanexus_config")), ".dx_history")
+                self.assertTrue(os.path.isfile(expected_history_filename))
+
+                # Make sure the job can be connected to using 'dx ssh <job id>'
+                dx2 = pexpect.spawn("dx ssh " + job_id, env=override_environment(HOME=wd))
+                dx2.logfile = sys.stdout
+                dx2.setwinsize(20, 90)
+                dx2.expect("Waiting for job")
+                dx2.expect("Resolving job hostname and SSH host key", timeout=1200)
+                dx2.expect(("dnanexus@%s" % job_id), timeout=10)
+                dx2.sendline("whoami")
+                dx2.expect("dnanexus", timeout=10)
+                # Exit SSH session and terminate job
+                dx2.sendline("exit")
+                dx2.expect("bash running")
+                dx2.sendcontrol("c") # CTRL-c
+                dx2.expect("[exited]")
+                dx2.expect("dnanexus@job", timeout=10)
+                dx2.sendline("exit")
+                dx2.expect("still running. Terminate now?")
+                dx2.sendline("y")
+                dx2.expect("Terminated job", timeout=60)
+
+    @unittest.skipIf(sys.platform.startswith("win"), "pexpect is not supported")
+    @unittest.skipUnless(testutil.TEST_RUN_JOBS, "Skipping test that would run jobs")
+    @unittest.skipUnless(testutil.TEST_HTTP_PROXY,
+                         'skipping HTTP Proxy support test that needs squid3')
+    def test_dx_ssh_proxy(self):
+        proxy_host = "localhost"
+        proxy_port = "3129"
+        proxy_addr = "http://{h}:{p}".format(h=proxy_host, p=proxy_port)
+
+        port_check = run("netstat -plant 2>/dev/null|grep 3129||echo available")[:-1]
+        if port_check != 'available':
+            raise Exception("Cannot launch squid, because port 3129 is already bound")
+
+        def launch_squid():
+            squid_wd = os.path.join(os.path.dirname(__file__), 'http_proxy')
+            self.proxy_process = subprocess.Popen(['squid3', '-N', '-f', 'squid_noauth.conf'],
+                                                  cwd=squid_wd)
+            print("Waiting for squid to come up...")
+            t = 0
+            while True:
+                try:
+                    if requests.get(proxy_addr).status_code == requests.codes.bad_request:
+                        print("squid is up")
+                        break
+                except requests.exceptions.RequestException:
+                    pass
+                time.sleep(0.5)
+                t += 1
+                if t > 16:
+                    raise Exception("Failed to launch Squid")
+
+        with self.configure_ssh() as wd:
+            launch_squid()
+            applet_json = dict(name="sleep",
+                               runSpec={"code": "sleep 6000",
+                                        "interpreter": "bash",
+                                        "execDepends": [{"name": "dx-toolkit"}]},
+                               inputSpec=[], outputSpec=[],
+                               dxapi="1.0.0", version="1.0.0",
+                               project=self.project)
+            sleep_applet = dxpy.api.applet_new(applet_json)["id"]
+
+            # Test incorrect arguments i.e. --ssh is missing
+            with self.assertSubprocessFailure(stderr_regexp="DXCLIError", exit_code=3):
+                run("dx run {a} --yes --ssh-proxy {h}:{p} --debug-on All".format(a=sleep_applet,
+                                                                                 h=proxy_host,
+                                                                                 p=proxy_port),
+                    env=override_environment(HOME=wd))
+
+            # Create job using the proxy
+            dx = pexpect.spawn("dx run {a} --yes --ssh --ssh-proxy {h}:{p} --debug-on All".
+                               format(a=sleep_applet,
+                                      h=proxy_host,
+                                      p=proxy_port),
                                env=override_environment(HOME=wd))
             dx.logfile = sys.stdout
             dx.setwinsize(20, 90)
-            dx.expect("Waiting for job")
-            dx.expect("Resolving job hostname and SSH host key", timeout=1200)
-
-            # Wait for the line displayed between the first and second MOTDs,
-            # since we only care about checking the second set of MOTD lines.
-            # Example of the dividing line:
-            # dnanexus@job-BP90K3Q0X2v81PXXPZj005Zj.dnanex.us (10.0.0.200) - byobu
-            dx.expect(["dnanexus.io \(10.0.0.200\) - byobu",
-                       "dnanex.us \(10.0.0.200\) - byobu"], timeout=120)
-            dx.expect("This is the DNAnexus Execution Environment", timeout=600)
-            # Check for job name (e.g. "Job: sleep")
-            dx.expect("Job: \x1b\[1msleep", timeout=5)
-            # \xf6 is ö
-            dx.expect("Project: dxclient_test_pr\xf6ject".encode(sys_encoding))
-            dx.expect("The job is running in terminal 1.", timeout=5)
+            dx.expect("The job is running in terminal 1.", timeout=1200)
             # Check for terminal prompt and verify we're in the container
             job_id = dxpy.find_jobs(name="sleep", project=self.project).next()['id']
             dx.expect(("dnanexus@%s" % job_id), timeout=10)
-
+            # Cache default ssh command for refactoring
+            ssh_proxy_command = "dx ssh --ssh-proxy {h}:{p} {id}".format(h=proxy_host,
+                                                                         p=proxy_port,
+                                                                         id=job_id)
             # Make sure the job can be connected to using 'dx ssh <job id>'
-            dx2 = pexpect.spawn("dx ssh " + job_id, env=override_environment(HOME=wd))
-            dx2.logfile = sys.stdout
-            dx2.setwinsize(20, 90)
-            dx2.expect("Waiting for job")
-            dx2.expect("Resolving job hostname and SSH host key", timeout=1200)
+            dx2 = pexpect.spawn(ssh_proxy_command, env=override_environment(HOME=wd))
             dx2.expect(("dnanexus@%s" % job_id), timeout=10)
-            dx2.sendline("whoami")
-            dx2.expect("dnanexus", timeout=10)
-            # Exit SSH session and terminate job
             dx2.sendline("exit")
-            dx2.expect("bash running")
-            dx2.sendcontrol("c") # CTRL-c
+            dx2.expect("bash running", timeout=10)
+            dx2.sendcontrol("c")  # CTRL-c
             dx2.expect("[exited]")
             dx2.expect("dnanexus@job", timeout=10)
-            dx2.sendline("exit")
-            dx2.expect("still running. Terminate now?")
-            dx2.sendline("y")
-            dx2.expect("Terminated job", timeout=60)
+            # Test proxy connection from worker side
+            squid_address = run("netstat -plant 2>/dev/null|grep squid3|grep :22|awk '{print $4}'")
+            squid_port = squid_address.split(':')[1][:-1]
+            dx2.sendline("netstat -plant 2>/dev/null|grep :{p}|awk '{{print $6}}'".format(p=squid_port))
+            dx2.expect("ESTABLISHED", timeout=60)
+            # Make sure ssh-proxy fails without proxy running
+            self.proxy_process.kill()
+            with self.assertSubprocessFailure(stderr_regexp="DXCLIError", exit_code=3):
+                run(ssh_proxy_command, env=override_environment(HOME=wd))
+            # Test invalid proxy address
+            with self.assertSubprocessFailure(stderr_regexp="DXCLIError", exit_code=3):
+                run("dx ssh --ssh-proxy {h}:{p} {id}".format(h='999.999.9.9',
+                                                             p='9999',
+                                                             id=job_id),
+                    env=override_environment(HOME=wd))
+
+            run("dx terminate " + job_id, env=override_environment(HOME=wd))
+            # Verify job termination
+            running = 'terminating'
+            t = 0
+            while running == 'terminating':
+                running = run("dx find jobs --id {id}|grep 'terminated'||echo 'terminating'"
+                              .format(id=job_id))[:-1]
+                time.sleep(1)
+                t += 1
+                if t > 16:
+                    raise Exception("Failed to terminate job")
+
+            launch_squid()
+            # Test sshing into a terminated job while proxy is running
+            with self.assertSubprocessFailure(stderr_regexp=("%s is in a terminal state" % job_id), exit_code=1):
+                run(ssh_proxy_command, env=override_environment(HOME=wd))
+
+            # Test sshing into a non existentant job through proxy
+            with self.assertSubprocessFailure(stderr_regexp="ResourceNotFound", exit_code=3):
+                bad_id = 'job-000000000000000000000000'
+                run("dx ssh --ssh-proxy {h}:{p} {id}".format(h=proxy_host,
+                                                             p=proxy_port,
+                                                             id=bad_id),
+                    env=override_environment(HOME=wd))
+            self.proxy_process.kill()
 
     @unittest.skipUnless(testutil.TEST_RUN_JOBS, "Skipping test that would run jobs")
     def test_dx_run_debug_on(self):
@@ -1080,7 +1223,7 @@ class TestDXClientUploadDownload(DXTestCase):
             fd.write("0123456789ABCDEF"*64)
             fd.flush()
             fd.close()
-            with self.assertSubprocessFailure(stderr_regexp='is a directory but the -r/--recursive option was not given', exit_code=1):
+            with self.assertSubprocessFailure(stderr_regexp='is a directory but the -r/--recursive option was not given', exit_code=3):
                 run("dx upload "+wd)
             run("dx upload -r "+wd)
             run('dx wait "{f}"'.format(f=os.path.join(os.path.basename(wd), "a", "б",
@@ -1592,7 +1735,7 @@ class TestDXClientDownloadDataEgressBilling(DXTestCase):
             self.assertEqual(self.get_billed_project(), proj.get_id())
 
             # Failure: project specified by ID does not contain file specified by ID
-            with self.assertSubprocessFailure(stderr_regexp="Error: project does not", exit_code=1):
+            with self.assertSubprocessFailure(stderr_regexp="Error: project does not", exit_code=3):
                 run("dx download -o - {p}:{f}".format(p=proj2.get_id(), f=file1_id))
 
             # Failure: project specified by ID does not contain file specified by name
@@ -1600,7 +1743,7 @@ class TestDXClientDownloadDataEgressBilling(DXTestCase):
                 run("dx download -o - {p}:{f}".format(p=proj.get_id(), f=file2_name))
 
             # Failure: project specified by name does not contain file specified by ID
-            with self.assertSubprocessFailure(stderr_regexp="Error: project does not", exit_code=1):
+            with self.assertSubprocessFailure(stderr_regexp="Error: project does not", exit_code=3):
                 run("dx download -o - {p}:{f}".format(p=proj2_name, f=file1_id))
 
             # Failure: project specified by name does not contain file specified by name
@@ -2737,6 +2880,8 @@ def main():
         shell.expect("Warning:")
         shell.sendline("N")
         shell.expect("IOError")
+        shell.expect(pexpect.EOF)
+        shell.wait()
         shell.close()
         self.assertEqual(3, shell.exitstatus)
 
@@ -5314,11 +5459,17 @@ class TestDXClientUpdateProject(DXTestCase):
                         'description': 'This is new a description',
                         'protected': 'false'}
 
-        cmd = "dx update project {pid} --name {name} --summary {summary} --description {desc} --protected {protect}"
+        update_project_output = check_output(["dx", "update", "project", self.project, "--name",
+                pipes.quote(update_items['name']), "--summary", update_items['summary'], "--description",
+                update_items['description'], "--protected", update_items['protected']])
+        update_project_json = json.loads(update_project_output);
+        self.assertTrue("id" in update_project_json)
+        self.assertEqual(self.project, update_project_json["id"])
 
-        run(cmd.format(pid=self.project, name=pipes.quote(update_items['name']),
-                       summary=pipes.quote(update_items['summary']), desc=pipes.quote(update_items['description']),
-                       protect=update_items['protected']))
+        update_project_output = check_output(["dx", "update", "project", self.project, "--name",
+                pipes.quote(update_items['name']), "--summary", update_items['summary'], "--description",
+                update_items['description'], "--protected", update_items['protected'], "--brief"])
+        self.assertEqual(self.project, update_project_output.rstrip("\n"))
 
         describe_input = {}
         for item in update_items:
@@ -5705,6 +5856,69 @@ class TestDXBuildApp(DXTestCaseBuildApps):
                 self.assertNotIn(warning, err.stderr)
             for warning in app_expected_warnings:
                 self.assertIn(warning, err.stderr)
+
+    @ unittest.skipUnless(testutil.TEST_ISOLATED_ENV, 'skipping test that would create apps')
+    def test_build_app_suggestions(self):
+        app_spec = {
+            "name": "test_build_app_suggestions",
+            "dxapi": "1.0.0",
+            "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+            "inputSpec": [{"name": "testname", "class": "file", "suggestions": []}],
+            "outputSpec": [],
+            "version": "0.0.1"
+        }
+
+        # check if project exists
+        app_spec["inputSpec"][0]["suggestions"] = [{"name": "somename", "project": "project-0000000000000000000000NA", "path": "/"}]
+        app_dir = self.write_app_directory("test_build_app_suggestions", json.dumps(app_spec), "code.py")
+        res = run("dx build --app " + app_dir, also_return_stderr=True)
+        self.assertIn('Suggested project {name} does not exist'.
+                       format(name=app_spec["inputSpec"][0]["suggestions"][0]["project"]), res[1])
+
+        # check path
+        app_spec["inputSpec"][0]["suggestions"] = [{"name": "somename", "project": self.project,
+                                                    "path": "/some_invalid_path"}]
+        app_dir = self.write_app_directory("test_build_app_suggestions", json.dumps(app_spec), "code.py")
+        res = run("dx build --app " + app_dir, also_return_stderr=True)
+        self.assertIn('Folder {path} could not be found in project'.
+                       format(path=app_spec["inputSpec"][0]["suggestions"][0]["path"]), res[1])
+
+        # check for $dnanexus_link
+        app_spec["inputSpec"][0]["suggestions"] = [{"name": "somename", "$dnanexus_link": "gtable-0000000000000000000000NA"}]
+        app_dir = self.write_app_directory("test_build_app_suggestions", json.dumps(app_spec), "code.py")
+        try:
+            run("dx build --app " + app_dir)
+        except subprocess.CalledProcessError as err:
+            self.assertIn('Suggested object {name} could not be found'.format
+                         (name=app_spec["inputSpec"][0]["suggestions"][0]["$dnanexus_link"]), err.stderr)
+
+        # check for value and $dnanexus_link in it
+        app_spec["inputSpec"][0]["suggestions"] = [{"name": "somename",
+                                                    "value": {"$dnanexus_link": "file-0000000000000000000000NA"}}]
+        app_dir = self.write_app_directory("test_build_app_suggestions", json.dumps(app_spec), "code.py")
+        try:
+            run("dx build --app " + app_dir)
+        except subprocess.CalledProcessError as err:
+            self.assertIn('Suggested object {name} could not be found'.format
+                         (name=app_spec["inputSpec"][0]["suggestions"][0]['value']["$dnanexus_link"]), err.stderr)
+
+    @ unittest.skipUnless(testutil.TEST_ISOLATED_ENV, 'skipping test that would create apps')
+    def test_build_app_suggestions_success(self):
+        app_spec = {"name": "test_build_app_suggestions",
+                    "dxapi": "1.0.0",
+                    "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+                    "inputSpec": [{"name": "testname", "class": "gtable", "suggestions": []}],
+                    "outputSpec": [], "version": "0.0.1"}
+
+        # check when project not public and we publish app, also check app build with a valid suggestion
+        app_spec["inputSpec"][0]["suggestions"] = [{"name": "somename", "project": self.project, "path": "/"}]
+        app_dir = self.write_app_directory("test_build_app_suggestions", json.dumps(app_spec), "code.py")
+        result = run("dx build --app --publish " + app_dir, also_return_stderr=True)
+        if len(result) == 2:
+            self.assertIn('NOT PUBLIC!'.format(name=app_spec['name']), result[1])
+        app_id = json.loads(result[0])['id']
+        app = dxpy.describe(app_id)
+        self.assertEqual(app['name'], app_spec['name'])
 
     def test_build_applet_with_no_dxapp_json(self):
         app_dir = self.write_app_directory("åpplet_with_no_dxapp_json", None, "code.py")
@@ -7564,7 +7778,7 @@ class TestDXGetExecutables(DXTestCaseBuildApps):
         self.assertNotIn(name, user_data['appsInstalled'])
         # Check for App not found
         app_unknown_name = ''.join(random.choice(string.ascii_lowercase) for _ in range(12))
-        with self.assertSubprocessFailure(stderr_regexp='Could not find the app', exit_code=1):
+        with self.assertSubprocessFailure(stderr_regexp='Could not find the app', exit_code=3):
             run("dx uninstall %s" % app_unknown_name, env=as_second_user())
         pass
 

@@ -17,12 +17,17 @@
 package com.dnanexus;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.Random;
 
 import org.apache.commons.io.IOUtils;
@@ -510,16 +515,34 @@ public class DXFileTest {
 
         Assert.assertArrayEquals(uploadBytes, downloadBytes);
     }
-    
+
     @Test
     public void testChecksumming() throws IOException {
-    	// Upload bytes
-    	byte[] uploadBytes = new byte[11 * 1024 * 1024];
-    	new Random().nextBytes(uploadBytes);
-    	
-    	DXFile f = DXFile.newFile().setProject(testProject).upload(uploadBytes).build().closeAndWait();
-    	
-    	// Now download the file while recording API calls against S3
-    	DXFile.PartDownloader mockPartDownloader = mock(DXFile.PartDownloader.class);
+        // Upload bytes
+        byte[] uploadBytes = new byte[11 * 1024 * 1024];
+        new Random().nextBytes(uploadBytes);
+
+        DXFile f = DXFile.newFile().setProject(testProject).upload(uploadBytes).build().closeAndWait();
+
+        // Now download the file while recording API calls against S3
+        DXFile.PartDownloader mockPartDownloader = mock(DXFile.PartDownloader.class);
+        InputStream is = f.getDownloadStream(mockPartDownloader);
+
+        when(mockPartDownloader.get(anyString(), eq(0L), eq(65535L))).thenReturn(
+                Arrays.copyOfRange(uploadBytes, 0, 65536));
+        when(mockPartDownloader.get(anyString(), eq(65536L), eq(131071L))).thenReturn(
+                Arrays.copyOfRange(uploadBytes, 65536, 131072));
+        // Next assume that something bad happens somewhere after offset 128k
+
+        byte[] b = new byte[128 * 1024];
+        is.read(b, 0, 128 * 1024);
+        Assert.assertArrayEquals(b, Arrays.copyOfRange(uploadBytes, 0, 131072));
+
+        try {
+            is.read(b, 128 * 1024, 1);
+            Assert.fail();
+        } catch (IOException e) {
+            // expected
+        }
     }
 }

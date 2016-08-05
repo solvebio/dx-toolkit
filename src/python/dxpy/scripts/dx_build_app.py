@@ -23,6 +23,7 @@ logging.basicConfig(level=logging.WARNING)
 logging.getLogger('requests.packages.urllib3.connectionpool').setLevel(logging.ERROR)
 
 import os, sys, json, subprocess, argparse
+import platform
 import py_compile
 import re
 import shutil
@@ -33,7 +34,7 @@ import dxpy, dxpy.app_builder
 from .. import logger
 
 from ..utils import json_load_raise_on_duplicates
-from ..utils.resolver import resolve_path, is_container_id
+from ..utils.resolver import resolve_path, check_folder_exists, ResolutionError, is_container_id
 from ..utils.completer import LocalCompleter
 from ..app_categories import APP_CATEGORIES
 from ..cli import try_call
@@ -126,8 +127,6 @@ app_options.add_argument("--no-update", help="Never update an existing unpublish
 parser.set_defaults(dx_toolkit_autodep="stable")
 parser.add_argument("--dx-toolkit-legacy-git-autodep", help=argparse.SUPPRESS, action="store_const", dest="dx_toolkit_autodep", const="git")
 parser.add_argument("--dx-toolkit-stable-autodep", help=argparse.SUPPRESS, action="store_const", dest="dx_toolkit_autodep", const="stable")
-parser.add_argument("--dx-toolkit-beta-autodep", help=argparse.SUPPRESS, action="store_const", dest="dx_toolkit_autodep", const="beta")         # deprecated
-parser.add_argument("--dx-toolkit-unstable-autodep", help=argparse.SUPPRESS, action="store_const", dest="dx_toolkit_autodep", const="unstable") # deprecated
 parser.add_argument("--dx-toolkit-autodep", help=argparse.SUPPRESS, action="store_const", dest="dx_toolkit_autodep", const="stable")
 parser.add_argument("--no-dx-toolkit-autodep", help="Do not auto-insert the dx-toolkit dependency (default is to add it if it would otherwise be absent from the runSpec)", action="store_false", dest="dx_toolkit_autodep")
 
@@ -211,6 +210,64 @@ def parse_destination(dest_str):
     return try_call(resolve_path, dest_str)
 
 
+def _check_suggestions(app_json, publish=False):
+    """
+    Examines the specified dxapp.json file and warns about any
+    violations of suggestions guidelines.
+
+    :raises: AppBuilderException for data objects that could not be found
+    """
+    for input_field in app_json.get('inputSpec', []):
+        for suggestion in input_field.get('suggestions', []):
+            if 'project' in suggestion:
+                try:
+                    project = dxpy.api.project_describe(suggestion['project'], {"permissions": True})
+                    if 'PUBLIC' not in project['permissions'] and publish:
+                        logger.warn('Project {name} NOT PUBLIC!'.format(name=project['name']))
+                except dxpy.exceptions.DXAPIError as e:
+                    if e.code == 404:
+                        logger.warn('Suggested project {name} does not exist, or not accessible by user'.format(
+                                     name=suggestion['project']))
+                if 'path' in suggestion:
+                    try:
+                        check_folder_exists(suggestion['project'], suggestion['path'], '')
+                    except ResolutionError as e:
+                        logger.warn('Folder {path} could not be found in project {project}'.format(
+                                     path=suggestion['path'], project=suggestion['project']))
+            if '$dnanexus_link' in suggestion:
+                if suggestion['$dnanexus_link'].startswith(('file-', 'record-', 'gtable-')):
+                    try:
+                        dnanexus_link = dxpy.describe(suggestion['$dnanexus_link'])
+                    except dxpy.exceptions.DXAPIError as e:
+                        if e.code == 404:
+                            raise dxpy.app_builder.AppBuilderException(
+                                'Suggested object {name} could not be found'.format(
+                                    name=suggestion['$dnanexus_link']))
+                    except Exception as e:
+                        raise dxpy.app_builder.AppBuilderException(str(e))
+            if 'value' in suggestion:
+                if '$dnanexus_link' in suggestion['value']:
+                    # Check if we have JSON or string
+                    if isinstance(suggestion['value']['$dnanexus_link'], dict):
+                        if 'project' in suggestion['value']['$dnanexus_link']:
+                            try:
+                                dxpy.api.project_describe(suggestion['value']['$dnanexus_link']['project'])
+                            except dxpy.exceptions.DXAPIError as e:
+                                if e.code == 404:
+                                    logger.warn('Suggested project {name} does not exist, or not accessible by user'.format(
+                                                 name=suggestion['value']['$dnanexus_link']['project']))
+                    elif isinstance(suggestion['value']['$dnanexus_link'], basestring):
+                        if suggestion['value']['$dnanexus_link'].startswith(('file-', 'record-', 'gtable-')):
+                            try:
+                                dnanexus_link = dxpy.describe(suggestion['value']['$dnanexus_link'])
+                            except dxpy.exceptions.DXAPIError as e:
+                                if e.code == 404:
+                                    raise dxpy.app_builder.AppBuilderException(
+                                        'Suggested object {name} could not be found'.format(
+                                            name=suggestion['value']['$dnanexus_link']))
+                            except Exception as e:
+                                raise dxpy.app_builder.AppBuilderException(str(e))
+
 def _lint(dxapp_json_filename, mode):
     """
     Examines the specified dxapp.json file and warns about any
@@ -242,7 +299,9 @@ def _lint(dxapp_json_filename, mode):
         readme_filename = _find_readme(os.path.dirname(dxapp_json_filename))
         if 'description' in app_spec:
             if readme_filename:
-                logger.warn('"description" field shadows file ' + readme_filename)
+                raise dxpy.app_builder.AppBuilderException('Description was provided both in Readme.md '
+                          'and in the "description" field of {file}. Please consolidate content in Readme.md '
+                          'and remove the "description" field.'.format(file=dxapp_json_filename))
             if not app_spec['description'].strip().endswith('.'):
                 logger.warn('"description" field should be written in complete sentences and end with a period')
         else:
@@ -336,7 +395,11 @@ def _check_file_syntax(filename, temp_dir, override_lang=None, enforce=True):
             except OSError:
                 pass
     def check_bash(filename):
-        subprocess.check_output(["/bin/bash", "-n", filename], stderr=subprocess.STDOUT)
+        if platform.system() == 'Windows':
+            logging.warn(
+                    'Skipping bash syntax check due to unavailability of bash on Windows.')
+        else:
+            subprocess.check_output(["/bin/bash", "-n", filename], stderr=subprocess.STDOUT)
 
     if override_lang == 'python2.7':
         checker_fn = check_python
@@ -472,6 +535,8 @@ def _verify_app_writable(app_name):
     except dxpy.exceptions.DXAPIError as e:
         if e.name == 'ResourceNotFound':
             app_name_already_exists = False
+        elif e.name == 'PermissionDenied':
+            raise dxpy.app_builder.AppBuilderException('An app with the given name already exists and you are not a developer of that app')
         else:
             raise e
 
@@ -509,10 +574,6 @@ def _build_app_remote(mode, src_dir, publish=False, destination_override=None,
         builder_app = 'app-tarball_applet_builder'
 
     temp_dir = tempfile.mkdtemp()
-
-    # TODO: this is vestigial, the "auto" setting should be removed.
-    if dx_toolkit_autodep == "auto":
-        dx_toolkit_autodep = "stable"
 
     build_options = {'dx_toolkit_autodep': dx_toolkit_autodep}
 
@@ -689,11 +750,12 @@ def build_and_upload_locally(src_dir, mode, overwrite=False, archive=False, publ
                              version_override=None, bill_to_override=None, use_temp_build_project=True,
                              do_parallel_build=True, do_version_autonumbering=True, do_try_update=True,
                              dx_toolkit_autodep="stable", do_check_syntax=True, dry_run=False,
-                             return_object_dump=False, confirm=True, ensure_upload=False, force_symlinks=False, region=None, **kwargs):
+                             return_object_dump=False, confirm=True, ensure_upload=False, force_symlinks=False,
+                             region=None, **kwargs):
 
     dxpy.app_builder.build(src_dir, parallel_build=do_parallel_build)
     app_json = _parse_app_spec(src_dir)
-
+    _check_suggestions(app_json, publish=publish)
     _verify_app_source_dir(src_dir, mode, enforce=do_check_syntax)
     if mode == "app" and not dry_run:
         _verify_app_writable(app_json['name'])
@@ -723,7 +785,7 @@ def build_and_upload_locally(src_dir, mode, overwrite=False, archive=False, publ
             parser.error("Can't create an applet without specifying a destination project; please use the -d/--destination flag to explicitly specify a project")
 
         if "buildOptions" in app_json:
-            if app_json["buildOptions"].get("dx_toolkit_autodep") == False:
+            if app_json["buildOptions"].get("dx_toolkit_autodep") is False:
                 dx_toolkit_autodep = False
 
         # Perform check for existence of applet with same name in
@@ -753,9 +815,6 @@ def build_and_upload_locally(src_dir, mode, overwrite=False, archive=False, publ
                                                               force_symlinks=force_symlinks) if not dry_run else []
 
         try:
-            # TODO: the "auto" setting is vestigial and should be removed.
-            if dx_toolkit_autodep == "auto":
-                dx_toolkit_autodep = "stable"
             applet_id, applet_spec = dxpy.app_builder.upload_applet(
                 src_dir,
                 bundled_resources,
@@ -834,6 +893,7 @@ def _build_app(args, extra_args):
     TODO: remote app builds still return None, but we should fix this.
 
     """
+
     if not args.remote:
         # LOCAL BUILD
 
@@ -883,6 +943,7 @@ def _build_app(args, extra_args):
 
         try:
             app_json = _parse_app_spec(args.src_dir)
+            _check_suggestions(app_json, publish=args.publish)
             _verify_app_source_dir(args.src_dir, args.mode)
             if args.mode == "app" and not args.dry_run:
                 _verify_app_writable(app_json['name'])
@@ -961,9 +1022,6 @@ def main(**kwargs):
 
     if args.mode == "applet" and args.region:
         parser.error("--region cannot be used when creating an applet (only an app)")
-
-    if args.dx_toolkit_autodep in ['beta', 'unstable']:
-        logging.warn('The --dx-toolkit-beta-autodep and --dx-toolkit-unstable-autodep flags have no effect and will be removed at some date in the future.')
 
     if args.overwrite and args.archive:
         parser.error("Options -f/--overwrite and -a/--archive cannot be specified together")

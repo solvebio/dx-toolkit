@@ -419,6 +419,43 @@ public class DXFile extends DXDataObject {
         private String url;
     }
 
+    private static class HttpPartDownloader implements PartDownloader {
+        @Override
+        public byte[] get(String url, long start, long end) throws ClientProtocolException, IOException {
+            Preconditions.checkState(end - start <= (long) 2 * 1024 * 1024 * 1024,
+                    "Download chunk size cannot be larger than 2GB");
+            HttpClient httpclient = HttpClientBuilder.create().setUserAgent(USER_AGENT).build();
+
+            // HTTP GET request with bytes/_ge range header
+            HttpGet request = new HttpGet(url);
+            request.addHeader("Range", "bytes=" + start + "-" + end);
+
+            HttpResponse response = executeRequestWithRetry(httpclient, request);
+            InputStream content = response.getEntity().getContent();
+
+            return IOUtils.toByteArray(content);
+        }
+    }
+
+    @VisibleForTesting
+    interface PartDownloader {
+        /**
+         * Perform an HTTP GET request to download part of the file.
+         *
+         * @param url URL to which an HTTP GET request is made to download the file
+         * @param chunkStart beginning of the part (in the byte array containing the file contents) to
+         *        be downloaded. This index is inclusive in the range.
+         * @param chunkEnd end of the part (in the byte array containing the file contents) to be
+         *        downloaded. This index is inclusive in the range.
+         *
+         * @return byte array containing the part of the file contents that is downloaded
+         *
+         * @throws ClientProtocolException HTTP request to the download URL cannot be executed
+         * @throws IOException unable to get file contents from HTTP response
+         */
+        byte[] get(String url, long start, long end) throws ClientProtocolException, IOException;
+    }
+
     private static final String USER_AGENT = DXUserAgent.getUserAgent();
 
     /**
@@ -723,6 +760,7 @@ public class DXFile extends DXDataObject {
 	InputStream getDownloadStream(PartDownloader downloader) {
 		return getDownloadStream(0, -1, downloader);
 	}
+
 
     /**
      * Returns an OutputStream that uploads any data written to it
