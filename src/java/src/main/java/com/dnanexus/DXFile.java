@@ -222,8 +222,9 @@ public class DXFile extends DXDataObject {
         private int filePart = 1;
         private int filePartSize;
         private Describe partsMetadata;
+        private final PartDownloader downloader;
 
-        private FileApiInputStream(long readStart, long readEnd) {
+        private FileApiInputStream(long readStart, long readEnd, PartDownloader downloader) {
             // API call returns URL and headers for HTTP GET requests
             JsonNode output = apiCallOnObject("download", MAPPER.valueToTree(new FileDownloadRequest(true)),
                     RetryStrategy.SAFE_TO_RETRY);
@@ -241,6 +242,7 @@ public class DXFile extends DXDataObject {
             Preconditions.checkArgument(readEnd >= readStart, "The start byte cannot be larger than the end byte");
             this.readEnd = readEnd;
             this.nextByteFromApi = readStart;
+            this.downloader = downloader;
         }
 
         @Override
@@ -277,7 +279,7 @@ public class DXFile extends DXDataObject {
             if (checksumBuffer == null || checksumBuffer.available() == 0) {
                 filePartSize = partsMetadata.getChunkSize(filePart);
                 endRange = startRange + filePartSize - 1;
-                rawFileStream = new ByteArrayInputStream(partDownloadRequest(apiResponse.url, startRange, endRange));
+                rawFileStream = new ByteArrayInputStream(this.downloader.get(apiResponse.url, startRange, endRange));
 
                 assert (rawFileStream.available() == filePartSize);
 
@@ -553,21 +555,28 @@ public class DXFile extends DXDataObject {
      *
      * @throws ClientProtocolException HTTP request to the download URL cannot be executed
      * @throws IOException unable to get file contents from HTTP response
-     */
-    private static byte[] partDownloadRequest(String url, long start, long end)
-            throws ClientProtocolException, IOException {
-        Preconditions.checkState(end - start <= (long) 2 * 1024 * 1024 * 1024,
-                "Download chunk size cannot be larger than 2GB");
-        HttpClient httpclient = HttpClientBuilder.create().setUserAgent(USER_AGENT).build();
+     */  
+	private static class HTTPPartDownloader implements PartDownloader {
+		@Override
+		public byte[] get(String url, long start, long end) throws ClientProtocolException, IOException {
+			Preconditions.checkState(end - start <= (long) 2 * 1024 * 1024 * 1024,
+					"Download chunk size cannot be larger than 2GB");
+			HttpClient httpclient = HttpClientBuilder.create().setUserAgent(USER_AGENT).build();
 
-        // HTTP GET request with bytes/_ge range header
-        HttpGet request = new HttpGet(url);
-        request.addHeader("Range", "bytes=" + start + "-" + end);
+			// HTTP GET request with bytes/_ge range header
+			HttpGet request = new HttpGet(url);
+			request.addHeader("Range", "bytes=" + start + "-" + end);
 
-        HttpResponse response = executeRequestWithRetry(httpclient, request);
-        InputStream content = response.getEntity().getContent();
+			HttpResponse response = executeRequestWithRetry(httpclient, request);
+			InputStream content = response.getEntity().getContent();
 
-        return IOUtils.toByteArray(content);
+			return IOUtils.toByteArray(content);
+		}
+	}
+    
+    @VisibleForTesting
+    interface PartDownloader {
+    	byte[] get(String url, long start, long end) throws ClientProtocolException, IOException;
     }
 
     /**
@@ -702,8 +711,18 @@ public class DXFile extends DXDataObject {
      * @return stream containing file contents within range specified
      */
     public InputStream getDownloadStream(long start, long end) {
-        return new FileApiInputStream(start, end);
+        return new FileApiInputStream(start, end, new HTTPPartDownloader());
     }
+    
+	@VisibleForTesting
+	InputStream getDownloadStream(long start, long end, PartDownloader downloader) {
+		return new FileApiInputStream(start, end, downloader);
+	}
+
+	@VisibleForTesting
+	InputStream getDownloadStream(PartDownloader downloader) {
+		return getDownloadStream(0, -1, downloader);
+	}
 
     /**
      * Returns an OutputStream that uploads any data written to it

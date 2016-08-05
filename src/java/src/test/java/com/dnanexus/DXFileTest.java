@@ -16,6 +16,8 @@
 
 package com.dnanexus;
 
+import static org.mockito.Mockito.mock;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -507,5 +509,17 @@ public class DXFileTest {
         downloadBytes = f.downloadBytes();
 
         Assert.assertArrayEquals(uploadBytes, downloadBytes);
+    }
+    
+    @Test
+    public void testChecksumming() throws IOException {
+    	// Upload bytes
+    	byte[] uploadBytes = new byte[11 * 1024 * 1024];
+    	new Random().nextBytes(uploadBytes);
+    	
+    	DXFile f = DXFile.newFile().setProject(testProject).upload(uploadBytes).build().closeAndWait();
+    	
+    	// Now download the file while recording API calls against S3
+    	DXFile.PartDownloader mockPartDownloader = mock(DXFile.PartDownloader.class);
     }
 }
