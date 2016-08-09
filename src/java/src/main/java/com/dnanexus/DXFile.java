@@ -46,6 +46,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.primitives.Bytes;
 
 /**
  * A file (an opaque sequence of bytes).
@@ -214,8 +215,9 @@ public class DXFile extends DXDataObject {
     private class FileApiInputStream extends InputStream {
         private FileDownloadResponse apiResponse;
 
-        private long nextByteFromApi;
+        private long nextByteFromApi = 0;
         private final long readEnd;
+        private final long readStart;
         private long endRange;
         private ByteArrayInputStream rawFileStream;
         private ByteArrayInputStream checksumBuffer;
@@ -240,9 +242,17 @@ public class DXFile extends DXDataObject {
                 readEnd = describe().getSize();
             }
             Preconditions.checkArgument(readEnd >= readStart, "The start byte cannot be larger than the end byte");
+            this.readStart = readStart;
             this.readEnd = readEnd;
-            this.nextByteFromApi = readStart;
             this.downloader = downloader;
+
+            // Determine which file part readStart belongs to
+            long filePartNext = partsMetadata.getChunkSize(filePart);
+            while (readStart >= filePartNext && filePartNext != 0) {
+                nextByteFromApi = filePartNext;
+                filePart++;
+                filePartNext = filePartNext + partsMetadata.getChunkSize(filePart);
+            }
         }
 
         @Override
@@ -270,46 +280,72 @@ public class DXFile extends DXDataObject {
                 return 0;
             }
 
-            long startRange = nextByteFromApi;
-            if (startRange >= readEnd) {
-                return -1;
-            }
-
             // Request more data to buffer
             if (checksumBuffer == null || checksumBuffer.available() == 0) {
-                filePartSize = partsMetadata.getChunkSize(filePart);
-                endRange = startRange + filePartSize - 1;
-                rawFileStream = new ByteArrayInputStream(this.downloader.get(apiResponse.url, startRange, endRange));
-
-                assert (rawFileStream.available() == filePartSize);
-
-                // Checksum verification
-                byte[] checksumBytes = new byte[filePartSize];
-                rawFileStream.read(checksumBytes, 0, filePartSize);
-
-                // File part's MD5 stored in file's meta data
-                String metadataChecksum = partsMetadata.getMD5(filePart);
-
-                // Verify that MD5 of the downloaded data is the same as the MD5 in the metadata
-                try {
-                    assert (DigestUtils.md5Hex(checksumBytes).equals(metadataChecksum));
-                } catch (AssertionError e) {
-                    throw new IOException(e);
+                if (nextByteFromApi >= readEnd) {
+                    return -1;
                 }
 
-                checksumBuffer = new ByteArrayInputStream(checksumBytes);
+                int numBytesLeft = numBytes;
+                while (numBytesLeft > 0) {
+                    filePartSize = partsMetadata.getChunkSize(filePart);
+                    endRange = nextByteFromApi + filePartSize - 1;
+                    rawFileStream = new ByteArrayInputStream(this.downloader.get(apiResponse.url, nextByteFromApi, endRange));
+
+                    assert (rawFileStream.available() == filePartSize);
+
+                    // Checksum verification
+                    byte[] checksumBytes = new byte[filePartSize];
+                    rawFileStream.read(checksumBytes, 0, filePartSize);
+
+                    // File part's MD5 stored in file's meta data
+                    String metadataChecksum = partsMetadata.getMD5(filePart);
+
+                    // Verify that MD5 of the downloaded data is the same as the MD5 in the metadata
+                    try {
+                        assert (DigestUtils.md5Hex(checksumBytes).equals(metadataChecksum));
+                    } catch (AssertionError e) {
+                        throw new IOException("Checksumming failed with file part " + filePart);
+                    }
+
+                    if (checksumBuffer == null) {
+                        int start = 0;
+                        int end = checksumBytes.length;
+                        if (readStart > Long.valueOf(nextByteFromApi)) {
+                            start = (int)(readStart - Long.valueOf(nextByteFromApi));
+                        }
+                        if (readEnd < Long.valueOf(endRange)) {
+                            end = end - (int)(Long.valueOf(endRange) - readEnd) - 1;
+                        }
+                        if (start > 0 || end < checksumBytes.length) {
+                            checksumBytes = Arrays.copyOfRange(checksumBytes, start, end);
+                        }
+                        checksumBuffer = new ByteArrayInputStream(checksumBytes);
+                    } else {
+                        int end = checksumBytes.length;
+                        if (readEnd < Long.valueOf(endRange)) {
+                            end = end - (int)(Long.valueOf(endRange) - readEnd) - 1;
+                        }
+                        if (end < checksumBytes.length) {
+                            checksumBytes = Arrays.copyOfRange(checksumBytes, 0, end);
+                        }
+                        checksumBuffer = new ByteArrayInputStream(Bytes.concat(IOUtils.toByteArray(checksumBuffer), checksumBytes));
+                    }
+
+                    // Needed to determine whether we need to get multiple file parts
+                    numBytesLeft = numBytesLeft - filePartSize;
+                    nextByteFromApi = endRange + 1;
+                    if (nextByteFromApi >= readEnd) {
+                        break;
+                    }
+                    filePart++;
+                }
             }
 
             // Return bytes to caller after checksumming part
             int bytesToRead = Math.min(numBytes, checksumBuffer.available());
             int bytesRead = checksumBuffer.read(b, off, bytesToRead);
             assert (bytesToRead == bytesRead);
-            assert (checksumBuffer.available() < filePartSize);
-
-            if (checksumBuffer.available() == 0) {
-                filePart++;
-                nextByteFromApi = endRange + 1;
-            }
 
             return bytesRead;
         }
@@ -417,43 +453,6 @@ public class DXFile extends DXDataObject {
         private Map<String, String> headers;
         @JsonProperty
         private String url;
-    }
-
-    private static class HttpPartDownloader implements PartDownloader {
-        @Override
-        public byte[] get(String url, long start, long end) throws ClientProtocolException, IOException {
-            Preconditions.checkState(end - start <= (long) 2 * 1024 * 1024 * 1024,
-                    "Download chunk size cannot be larger than 2GB");
-            HttpClient httpclient = HttpClientBuilder.create().setUserAgent(USER_AGENT).build();
-
-            // HTTP GET request with bytes/_ge range header
-            HttpGet request = new HttpGet(url);
-            request.addHeader("Range", "bytes=" + start + "-" + end);
-
-            HttpResponse response = executeRequestWithRetry(httpclient, request);
-            InputStream content = response.getEntity().getContent();
-
-            return IOUtils.toByteArray(content);
-        }
-    }
-
-    @VisibleForTesting
-    interface PartDownloader {
-        /**
-         * Perform an HTTP GET request to download part of the file.
-         *
-         * @param url URL to which an HTTP GET request is made to download the file
-         * @param chunkStart beginning of the part (in the byte array containing the file contents) to
-         *        be downloaded. This index is inclusive in the range.
-         * @param chunkEnd end of the part (in the byte array containing the file contents) to be
-         *        downloaded. This index is inclusive in the range.
-         *
-         * @return byte array containing the part of the file contents that is downloaded
-         *
-         * @throws ClientProtocolException HTTP request to the download URL cannot be executed
-         * @throws IOException unable to get file contents from HTTP response
-         */
-        byte[] get(String url, long start, long end) throws ClientProtocolException, IOException;
     }
 
     private static final String USER_AGENT = DXUserAgent.getUserAgent();
@@ -592,7 +591,7 @@ public class DXFile extends DXDataObject {
      *
      * @throws ClientProtocolException HTTP request to the download URL cannot be executed
      * @throws IOException unable to get file contents from HTTP response
-     */  
+     */
 	private static class HTTPPartDownloader implements PartDownloader {
 		@Override
 		public byte[] get(String url, long start, long end) throws ClientProtocolException, IOException {
@@ -610,7 +609,7 @@ public class DXFile extends DXDataObject {
 			return IOUtils.toByteArray(content);
 		}
 	}
-    
+
     @VisibleForTesting
     interface PartDownloader {
     	byte[] get(String url, long start, long end) throws ClientProtocolException, IOException;
@@ -750,7 +749,7 @@ public class DXFile extends DXDataObject {
     public InputStream getDownloadStream(long start, long end) {
         return new FileApiInputStream(start, end, new HTTPPartDownloader());
     }
-    
+
 	@VisibleForTesting
 	InputStream getDownloadStream(long start, long end, PartDownloader downloader) {
 		return new FileApiInputStream(start, end, downloader);

@@ -16,7 +16,6 @@
 
 package com.dnanexus;
 
-import static org.mockito.Mockito.mock;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -517,29 +516,56 @@ public class DXFileTest {
     }
 
     @Test
+    public void testDownloadReadStartEnd() throws IOException {
+        // Upload bytes
+        byte[] uploadBytes = new byte[10 * 1024 * 1024];
+        new Random().nextBytes(uploadBytes);
+
+        DXFile f = DXFile.newFile().setProject(testProject).build();
+        // Max chunk size 5mb
+        f.uploadChunkSize = 5 * 1024 * 1024;
+        f.upload(uploadBytes);
+        f.closeAndWait();
+
+        byte[] downloadBytes = f.downloadBytes(0, 4 * 1024 * 1024);
+        Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 0, 4 * 1024 * 1024), downloadBytes);
+
+        downloadBytes = f.downloadBytes(4 * 1024 * 1024, 6 * 1024 * 1024);
+        Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 4 * 1024 * 1024, 6 * 1024 * 1024), downloadBytes);
+
+        downloadBytes = f.downloadBytes(6 * 1024 * 1024, -1);
+        Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 6 * 1024 * 1024, 10 * 1024 * 1024), downloadBytes);
+    }
+
+    @Test
     public void testChecksumming() throws IOException {
         // Upload bytes
         byte[] uploadBytes = new byte[11 * 1024 * 1024];
         new Random().nextBytes(uploadBytes);
 
-        DXFile f = DXFile.newFile().setProject(testProject).upload(uploadBytes).build().closeAndWait();
+        DXFile f = DXFile.newFile().setProject(testProject).build();
+        // Max chunk size 5mb
+        f.uploadChunkSize = 5 * 1024 * 1024;
+        f.upload(uploadBytes);
+        f.closeAndWait();
 
         // Now download the file while recording API calls against S3
         DXFile.PartDownloader mockPartDownloader = mock(DXFile.PartDownloader.class);
         InputStream is = f.getDownloadStream(mockPartDownloader);
 
-        when(mockPartDownloader.get(anyString(), eq(0L), eq(65535L))).thenReturn(
-                Arrays.copyOfRange(uploadBytes, 0, 65536));
-        when(mockPartDownloader.get(anyString(), eq(65536L), eq(131071L))).thenReturn(
-                Arrays.copyOfRange(uploadBytes, 65536, 131072));
-        // Next assume that something bad happens somewhere after offset 128k
+        when(mockPartDownloader.get(anyString(), eq(0L), eq(5242879L))).thenReturn(
+                Arrays.copyOfRange(uploadBytes, 0, 5 * 1024 * 1024));
+        // Checksum should fail here
+        when(mockPartDownloader.get(anyString(), eq(5242880L), eq(10485759L))).thenReturn(
+                Arrays.copyOfRange(uploadBytes, 0, 5 * 1024 * 1024));
 
-        byte[] b = new byte[128 * 1024];
-        is.read(b, 0, 128 * 1024);
-        Assert.assertArrayEquals(b, Arrays.copyOfRange(uploadBytes, 0, 131072));
+        byte[] b = new byte[5 * 1024 * 1024];
+        is.read(b, 0, 5 * 1024 * 1024);
+        Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 0, 5 * 1024 * 1024), b);
 
         try {
-            is.read(b, 128 * 1024, 1);
+            b = new byte[5 * 1024 * 1024];
+            is.read(b, 0, 1);
             Assert.fail();
         } catch (IOException e) {
             // expected
