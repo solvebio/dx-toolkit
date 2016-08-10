@@ -4081,10 +4081,6 @@ class TestDXClientFind(DXTestCase):
         project_name = "tempProject+{t}".format(t=time.time())
         with temporary_project(name=project_name) as temp_proj:
             temp_proj_id = temp_proj.get_id()
-
-            def run_in_temp(command):
-                return run(command + ' --project ' + temp_proj_id)
-
             dxsubapplet = dxpy.DXApplet(project=temp_proj_id)
             dxapplet = dxpy.DXApplet(project=temp_proj_id)
 
