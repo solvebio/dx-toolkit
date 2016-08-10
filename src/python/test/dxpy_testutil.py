@@ -105,7 +105,6 @@ def check_output(*popenargs, **kwargs):
         if cmd is None:
             cmd = popenargs[0]
         exc = DXCalledProcessError(retcode, cmd, output=output, stderr=err)
-        print(output)
         raise exc
 
     if return_stderr:
