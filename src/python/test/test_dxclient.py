@@ -4136,11 +4136,7 @@ class TestDXClientFind(DXTestCase):
                 self.assertEqual(set(execid.strip() for execid in cmd.splitlines()),
                                  set(ids))
 
-            options = "--brief --user=self"
-            assert_cmd_gives_ids(run("dx find executions "+options), [])
-            assert_cmd_gives_ids(run("dx find jobs "+options), [])
-            assert_cmd_gives_ids(run("dx find analyses "+options), [])
-            options += " --project="+temp_proj_id
+            options = "--brief --user=self --project="+temp_proj_id
             assert_cmd_gives_ids(run("dx find executions "+options), [job_id, analysis_id, subjob_id])
             assert_cmd_gives_ids(run("dx find jobs "+options), [job_id, subjob_id])
             assert_cmd_gives_ids(run("dx find analyses "+options), [analysis_id])
