@@ -28,7 +28,7 @@ import shutil
 
 import dxpy
 import dxpy_testutil as testutil
-from dxpy_testutil import (DXTestCase, check_output, override_environment)
+from dxpy_testutil import (DXTestCase, check_output, override_environment, chdir)
 
 
 def run(command, **kwargs):
@@ -257,6 +257,51 @@ class TestDXBuildAsset(DXTestCase):
         # TODO exit_code=3
         with self.assertSubprocessFailure(stderr_regexp='code 422', exit_code=1):
             run("dx build_asset --json " + asset_dir)
+
+    @unittest.skipUnless(testutil.TEST_RUN_JOBS, 'skipping test that would run jobs')
+    def test_get_appet_with_asset(self):
+        asset_spec = {
+            "name": "asset library name with space",
+            "title": "A human readable name",
+            "description": " A detailed description about the asset",
+            "version": "0.0.1",
+            "distribution": "Ubuntu",
+            "release": "12.04"
+        }
+        asset_dir = self.write_asset_directory("build_and_use_asset", json.dumps(asset_spec))
+
+        asset_bundle_id = json.loads(run('dx build_asset --json ' + asset_dir))['id']
+        code_str = """#!/bin/bash
+                    main(){
+                        echo 'Hello World'
+                    }
+                    """
+        app_spec = {
+            "name": "asset_depends",
+            "dxapi": "1.0.0",
+            "runSpec": {
+                "code": code_str,
+                "interpreter": "bash",
+                "assetDepends":  [{"id": asset_bundle_id}]
+            },
+            "inputSpec": [],
+            "outputSpec": [],
+            "version": "1.0.0"
+        }
+        app_dir = self.write_app_directory("asset_depends", json.dumps(app_spec))
+        asset_applet_id = json.loads(run("dx build --json {app_dir}".format(app_dir=app_dir)))["id"]
+        with chdir(tempfile.mkdtemp()):
+            run("dx get " + asset_applet_id)
+            self.assertTrue(os.path.exists("asset_depends"))
+            self.assertFalse(os.path.exists(os.path.join("asset_depends", "resources")))
+            self.assertTrue(os.path.exists(os.path.join("asset_depends", "dxapp.json")))
+
+            applet_spec = json.load(open(os.path.join("asset_depends", "dxapp.json")))
+            self.assertEqual([{"name": "asset library name with space",
+                               "project": self.project,
+                               "folder": "/",
+                               "version": "0.0.1"}],
+                             applet_spec["runSpec"]["assetDepends"])
 
 if __name__ == '__main__':
     if dxpy.AUTH_HELPER is None:

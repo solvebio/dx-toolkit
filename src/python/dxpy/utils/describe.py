@@ -27,6 +27,7 @@ from __future__ import print_function, unicode_literals, division, absolute_impo
 import datetime, time, json, math, sys, copy
 from collections import defaultdict
 
+import dxpy
 from .printing import (RED, GREEN, BLUE, YELLOW, WHITE, BOLD, UNDERLINE, ENDC, DELIMITER, get_delimiter, fill)
 from ..compat import basestring
 
@@ -297,11 +298,14 @@ def render_bundleddepends(thing):
     from ..bindings.search import find_one_data_object
     bundles = []
     for item in thing:
-        # check if the id links to an asset
-        asset = find_one_data_object(zero_ok=True, classname="record", typename="AssetBundle",
-                                     link=item["id"]["$dnanexus_link"], describe=True)
+        bundle_asset_record = dxpy.DXFile(item["id"]["$dnanexus_link"]).get_properties().get("AssetBundle")
+        asset = None
+
+        if bundle_asset_record:
+            asset = dxpy.DXRecord(bundle_asset_record)
+
         if asset:
-            bundles.append(asset["describe"]["name"] + " (" + asset["id"] + ")")
+            bundles.append(asset.describe().get("name") + " (" + asset.get_id() + ")")
         else:
             bundles.append(item["name"] + " (" + item["id"]["$dnanexus_link"] + ")")
 

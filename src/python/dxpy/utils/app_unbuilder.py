@@ -31,6 +31,7 @@ import os
 import subprocess
 import sys
 
+import dxpy
 from .. import get_handler, download_dxfile
 from ..compat import open
 from ..exceptions import err_exit
@@ -81,13 +82,40 @@ def dump_executable(executable, destination_directory, omit_resources=False, des
         with open(script, "w") as f:
             f.write(info["runSpec"]["code"])
 
-        # resources/ directory
+        # Get all the asset bundles
+        asset_depends = []
         deps_to_remove = []
+        for dep in reversed(info["runSpec"]["bundledDepends"]):
+            file_handle = get_handler(dep["id"])
+            if isinstance(file_handle, dxpy.DXFile):
+                asset_record_id = file_handle.get_properties().get("AssetBundle")
+                if asset_record_id:
+                    asset_record = None
+                    # If record data object could not be initialized for some reason
+                    # ex. permission restrictions, etc. move on to the next one
+                    try:
+                        asset_record = dxpy.DXRecord(asset_record_id)
+                    except:
+                        pass
+                    if asset_record:
+                        deps_to_remove.append(dep)
+                        asset_depends.append({"name": asset_record.describe().get("name"),
+                                              "project": asset_record.get_proj_id(),
+                                              "folder": asset_record.describe().get("folder"),
+                                              "version": asset_record.describe(fields={"properties": True}
+                                                                               )["properties"]["version"]
+                                              })
+                else:
+                    break
+
+        # resources/ directory
         created_resources_directory = False
         if not omit_resources:
             for dep in info["runSpec"]["bundledDepends"]:
+                if dep in deps_to_remove:
+                    continue
                 handler = get_handler(dep["id"])
-                if handler.__class__.__name__ == "DXFile":
+                if isinstance(handler, dxpy.DXFile):
                     if not created_resources_directory:
                         os.mkdir("resources")
                         created_resources_directory = True
@@ -122,6 +150,10 @@ def dump_executable(executable, destination_directory, omit_resources=False, des
         # Remove resources from bundledDepends
         for dep in deps_to_remove:
             dxapp_json["runSpec"]["bundledDepends"].remove(dep)
+
+        # Add assetDepends to dxapp.json
+        if len(asset_depends) > 0:
+            dxapp_json["runSpec"]["assetDepends"] = asset_depends
 
         # Ordering input/output spec keys
         ordered_spec_keys = ("name", "label", "help", "class", "type", "patterns", "optional", "default", "choices",
