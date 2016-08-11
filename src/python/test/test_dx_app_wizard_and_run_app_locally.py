@@ -57,8 +57,6 @@ def run_dx_app_wizard():
         wizard.sendline("Заголовок")
         wizard.expect("Summary")
         wizard.sendline("Конспект")
-        wizard.expect("Description")
-        wizard.sendline("Описание")
         wizard.expect("Version")
         wizard.sendline("1.2.3")
         wizard.expect("1st input name")

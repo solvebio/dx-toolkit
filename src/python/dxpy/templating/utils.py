@@ -142,10 +142,9 @@ def get_metadata(api_version):
     summary = prompt_for_var('Summary', '')
 
     print('')
-    print(fill('The ' + BOLD() + 'description' + ENDC() + ' of your app is a longer piece of text describing your app.  It can be any UTF-8 human-readable string, and it will be interpreted using Markdown (see http://daringfireball.net/projects/markdown/syntax/ for more details).'))
-    description = prompt_for_var('Description', '')
+    print(fill('The ' + BOLD() + 'description' + ENDC() + ' of your app is a longer piece of text describing your app.  It can be any UTF-8 human-readable string, and it will be interpreted using Markdown (see http://daringfireball.net/projects/markdown/syntax/ for more details). Please edit ./' + title + '/Readme.md to add a description.'))
 
-    return title, summary, description
+    return title, summary
 
 def get_version(default=None):
     if default is None:

@@ -89,7 +89,7 @@ def main(**kwargs):
             sys.stderr.write(fill('''Unable to create a directory for %s, please check that it is a valid app name and the working directory exists and is writable.''' % name) + '\n')
             sys.exit(1)
 
-        title, summary, description = get_metadata(API_VERSION)
+        title, summary = get_metadata(API_VERSION)
 
         version = get_version()
 
@@ -144,7 +144,7 @@ def main(**kwargs):
                 if not printed_classes:
                     print('Your input parameter must be of one of the following classes:')
                     print('''applet         array:file     array:record   file           int
-array:applet   array:float    array:string   float          record         
+array:applet   array:float    array:string   float          record
 array:boolean  array:int      boolean        hash           string
 ''')
                     printed_classes = True
@@ -234,8 +234,8 @@ array:boolean  array:int      boolean        hash           string
                 use_completer(class_completer)
                 if not printed_classes:
                     print('Your output parameter must be of one of the following classes:')
-                    print('''applet         array:file     array:record   file           int            
-array:applet   array:float    array:string   float          record         
+                    print('''applet         array:file     array:record   file           int
+array:applet   array:float    array:string   float          record
 array:boolean  array:int      boolean        hash           string''')
                     printed_classes = True
                 while True:
@@ -314,7 +314,7 @@ array:boolean  array:int      boolean        hash           string''')
 
     print('')
     print(BOLD('Access Permissions'))
-    print(fill('''If you request these extra permissions for your app, users will see this fact when launching your app, and certain other restrictions will apply. For more information, see ''' + 
+    print(fill('''If you request these extra permissions for your app, users will see this fact when launching your app, and certain other restrictions will apply. For more information, see ''' +
     BOLD('https://wiki.dnanexus.com/App-Permissions') + '.'))
 
     print('')
@@ -419,7 +419,7 @@ the DNAnexus community, you must first specify your inputs and outputs.
                                             required_file_input_names, optional_file_input_names,
                                             required_file_array_input_names, optional_file_array_input_names,
                                             file_output_names, pattern,
-                                            entry_points=entry_points, description=description)
+                                            entry_points=entry_points)
 
     print("Created files:")
     for filename in sorted(manifest):
