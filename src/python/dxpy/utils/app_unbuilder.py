@@ -35,6 +35,7 @@ from .. import get_handler, download_dxfile
 from ..compat import open
 from ..exceptions import err_exit
 from .pretty_print import flatten_json_array
+from ..bindings.search import find_one_data_object
 
 def _recursive_cleanup(foo):
     """
@@ -81,11 +82,24 @@ def dump_executable(executable, destination_directory, omit_resources=False, des
         with open(script, "w") as f:
             f.write(info["runSpec"]["code"])
 
-        # resources/ directory
+        # Get all the asset bundles
+        asset_depends = []
         deps_to_remove = []
+        for dep in info["runSpec"]["bundledDepends"]:
+            file_handle = get_handler(dep["id"])
+            if file_handle.__class__.__name__ == "DXFile":
+                asset_record = find_one_data_object(zero_ok=True, classname="record", typename="AssetBundle",
+                                                    link=dep["id"]["$dnanexus_link"], describe=True)
+                if(asset_record):
+                    deps_to_remove.append(dep)
+                    asset_depends.append({"name": asset_record["describe"]["name"], "id": asset_record["id"]})
+
+        # resources/ directory
         created_resources_directory = False
         if not omit_resources:
             for dep in info["runSpec"]["bundledDepends"]:
+                if dep in deps_to_remove:
+                    continue
                 handler = get_handler(dep["id"])
                 if handler.__class__.__name__ == "DXFile":
                     if not created_resources_directory:
@@ -122,6 +136,12 @@ def dump_executable(executable, destination_directory, omit_resources=False, des
         # Remove resources from bundledDepends
         for dep in deps_to_remove:
             dxapp_json["runSpec"]["bundledDepends"].remove(dep)
+
+        # Add assetDepends to dxapp.json
+        if len(asset_depends) > 0:
+            dxapp_json["runSpec"]["assetDepends"] = []
+            for asset in asset_depends:
+                dxapp_json["runSpec"]["assetDepends"].append(asset)
 
         # Ordering input/output spec keys
         ordered_spec_keys = ("name", "label", "help", "class", "type", "patterns", "optional", "default", "choices",
