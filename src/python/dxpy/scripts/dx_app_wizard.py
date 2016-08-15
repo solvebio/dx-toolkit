@@ -299,7 +299,7 @@ array:boolean  array:int      boolean        hash           string''')
     interpreter = language_options[language].get_interpreter()
     app_json["runSpec"] = OrderedDict({"interpreter": interpreter})
 
-    # Prompt for execution pattern
+    # Verify execution pattern, otherwise default to 'basic'
 
     template_dir = os.path.join(os.path.dirname(dxpy.__file__), 'templating', 'templates', language_options[language].get_path())
     pattern = args.template if os.path.isdir(os.path.join(template_dir, args.template)) else get_pattern(args.template)
@@ -359,6 +359,14 @@ array:boolean  array:int      boolean        hash           string''')
     app_json['runSpec']['systemRequirements'].setdefault('*', {})
     app_json['runSpec']['systemRequirements']['*']['instanceType'] = instance_type
 
+    ########################
+    # TIMEOUT POLICY #
+    ########################
+
+    app_json.setdefault('timeoutPolicy', {})
+    app_json['timeoutPolicy'].setdefault('*', {})
+    app_json['timeoutPolicy']['*'].setdefault('hours', 48)
+
     ######################
     # HARDCODED DEFAULTS #
     ######################
@@ -370,9 +378,6 @@ array:boolean  array:int      boolean        hash           string''')
     app_json['runSpec']['distribution'] = 'Ubuntu'
     app_json['runSpec']['release'] = '12.04'
 
-    app_json.setdefault('timeoutPolicy', {})
-    app_json['timeoutPolicy'].setdefault('*', {})
-    app_json['timeoutPolicy']['*'].setdefault('hours', 24)
     #if any(instance_type.startswith(prefix) for prefix in ('mem1_hdd2', 'mem2_hdd2', 'mem3_hdd2')):
     #    print(fill('Your app will run on Ubuntu 12.04. To use Ubuntu 14.04, select from the list of common instance ' +
     #               'types above.'))
