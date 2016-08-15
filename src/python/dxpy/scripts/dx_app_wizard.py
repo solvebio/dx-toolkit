@@ -47,6 +47,9 @@ API_VERSION = '1.0.0'
 parser = argparse.ArgumentParser(description="Create a source code directory for a DNAnexus app.  You will be prompted for various metadata for the app as well as for its input and output specifications.")
 parser.add_argument('--json-file', help='Use the metadata and IO spec found in the given file')
 parser.add_argument('--language', help='Programming language of your app')
+parser.add_argument('--template',
+                    choices=["basic", "parallelized", "scatter-process-gather"], default='basic',
+                    help='Execution pattern of your app')
 parser.add_argument('name', help='Name of your app', nargs='?')
 args = parser.parse_args()
 
@@ -299,7 +302,7 @@ array:boolean  array:int      boolean        hash           string''')
     # Prompt for execution pattern
 
     template_dir = os.path.join(os.path.dirname(dxpy.__file__), 'templating', 'templates', language_options[language].get_path())
-    pattern = get_pattern(template_dir)
+    pattern = args.template if os.path.isdir(os.path.join(template_dir, args.template)) else get_pattern(args.template)
     template_dir = os.path.join(template_dir, pattern)
 
     with open(os.path.join(template_dir, 'dxapp.json'), 'r') as template_app_json_file:
