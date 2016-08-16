@@ -247,12 +247,14 @@ public class DXFile extends DXDataObject {
         private long chunkSize = minDownloadChunkSize;
         private final long readEnd;
         private final long readStart;
+        private long startRange;
         private long endRange;
         private byte[] bytesFromApiCall;
         private byte[] rawFileBytes;
         private ByteArrayInputStream rawFileInputStream;
         private ByteArrayInputStream checksumBuffer;
         private byte[] checksumBytes;
+        private byte[] finishedChecksumBytes;
         private int request = 1;
         private int filePart = 1;
         private int filePartSize;
@@ -330,8 +332,9 @@ public class DXFile extends DXDataObject {
                         }
                     }
 
+                    startRange = nextByteFromApi;
                     endRange = Math.min(nextByteFromApi + chunkSize - 1, describe().getSize() - 1);
-                    bytesFromApiCall = this.downloader.get(apiResponse.url, nextByteFromApi, endRange);
+                    bytesFromApiCall = this.downloader.get(apiResponse.url, startRange, endRange);
                     request++;
 
                     if (rawFileBytes != null) {
@@ -342,11 +345,11 @@ public class DXFile extends DXDataObject {
 
                     nextByteFromApi = endRange + 1;
                 }
-
                 assert(rawFileBytes.length >= filePartSize);
 
                 // Checksum verification
                 rawFileInputStream = new ByteArrayInputStream(rawFileBytes);
+                finishedChecksumBytes = null;
                 // Multiple file parts may need to be checksummed
                 while (rawFileInputStream.available() >= filePartSize) {
                     // File part's MD5 stored in file's meta data
@@ -356,6 +359,11 @@ public class DXFile extends DXDataObject {
                     // Verify that MD5 of the downloaded data is the same as the MD5 in the metadata
                     try {
                         assert (DigestUtils.md5Hex(checksumBytes).equals(metadataChecksum));
+                        if (finishedChecksumBytes != null) {
+                            finishedChecksumBytes = Bytes.concat(finishedChecksumBytes, checksumBytes);
+                        } else {
+                            finishedChecksumBytes = checksumBytes;
+                        }
                     } catch (AssertionError e) {
                         throw new IOException("Checksumming failed with file part " + filePart);
                     }
@@ -369,17 +377,17 @@ public class DXFile extends DXDataObject {
 
                 // Bytes that were not checksummed are restored
                 rawFileBytes = IOUtils.toByteArray(rawFileInputStream);
-                checksumBuffer = new ByteArrayInputStream(checksumBytes);
-            }
-
-            if (readStart > startByteChecksumBuffer) {
-                checksumBuffer.skip(readStart - startByteChecksumBuffer);
-                startByteChecksumBuffer = readStart;
+                checksumBuffer = new ByteArrayInputStream(finishedChecksumBytes);
+                assert(checksumBuffer.available() == finishedChecksumBytes.length);
             }
 
             // Return bytes to caller after checksumming part
             int bytesToRead = 0;
             int bytesRead = 0;
+            if (readStart > startByteChecksumBuffer) {
+                checksumBuffer.skip(readStart - startByteChecksumBuffer);
+                startByteChecksumBuffer = readStart;
+            }
             endByteChecksumBuffer = startByteChecksumBuffer + checksumBuffer.available();
             if (readEnd < endByteChecksumBuffer) {
                 if (checksumBuffer.available() == (int)(endByteChecksumBuffer - readEnd)) {
@@ -387,12 +395,11 @@ public class DXFile extends DXDataObject {
                 }
                 bytesToRead = Math.min(numBytes, checksumBuffer.available() - (int)(endByteChecksumBuffer - readEnd));
                 bytesRead = checksumBuffer.read(b, off, bytesToRead);
-                assert (bytesToRead == bytesRead);
             } else {
                 bytesToRead = Math.min(numBytes, checksumBuffer.available());
                 bytesRead = checksumBuffer.read(b, off, bytesToRead);
-                assert (bytesToRead == bytesRead);
             }
+            assert (bytesToRead == bytesRead);
             startByteChecksumBuffer = startByteChecksumBuffer + bytesRead;
 
             return bytesRead;
