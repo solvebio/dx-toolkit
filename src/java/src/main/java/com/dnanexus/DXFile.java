@@ -21,7 +21,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.codec.digest.DigestUtils;
@@ -156,31 +159,44 @@ public class DXFile extends DXDataObject {
      * Contains metadata for a file.
      */
     public static class Describe extends DXDataObject.Describe {
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        private static class PartValue {
+            @JsonProperty
+            private String md5;
+            @JsonProperty
+            private int size;
+        }
         @JsonProperty
         private String media;
         @JsonProperty
-        private Long size;
+        private Map<Integer, PartValue> parts;
         @JsonProperty
-//        private Map<Integer, PartValue> parts;
-        private Map<Integer, Map<String, Object>> parts;
-
-//        private class PartValue {
-//            @JsonProperty
-//            private int size;
-//            @JsonProperty
-//            private String md5;
-//
-//            public int getSize() {
-//                return size;
-//            }
-//
-//            public String getMD5() {
-//                return md5;
-//            }
-//        }
+        private Long size;
 
         private Describe() {
             super();
+        }
+
+        /**
+         * Returns the size the specified file part in bytes.
+         *
+         * @param index part index that was provided to the file upload call
+         *
+         * @return size of the file part
+         */
+        public int getChunkSize(int index) {
+            return parts.get(index).size;
+        }
+
+        /**
+         * Returns the hexadecimal encoded value of MD5 message-digest of the specified file part.
+         *
+         * @param index part index that was provided to the file upload call
+         *
+         * @return file part md5 digested as a string
+         */
+        public String getMD5(int index) {
+            return parts.get(index).md5;
         }
 
         /**
@@ -204,62 +220,30 @@ public class DXFile extends DXDataObject {
                     "file size is not accessible because it was not retrieved with the describe call");
             return size;
         }
-
-        /**
-         * Returns the hexadecimal encoded value of MD5 message-digest of the specified file part.
-         *
-         * @param index part index that was provided to the file upload call
-         *
-         * @return file part md5 digested as a string
-         */
-        public String getMD5(int index) {
-//            return parts.get(index).getMD5();
-            return (String) parts.get(index).get("md5");
-        }
-
-        /**
-         * Returns the size the specified file part in bytes.
-         *
-         * @param index part index that was provided to the file upload call
-         *
-         * @return size of the file part
-         */
-        public int getChunkSize(int index) {
-//            return parts.get(index).getSize();
-            return (int) parts.get(index).get("size");
-        }
     }
-
-    // Variables for download
-    private final int maxDownloadChunkSize = 16 * 1024 * 1024;
-    private final int minDownloadChunkSize = 64 * 1024;
-    private final int numRequestsBetweenRamp = 4;
-
-    // Ramp up factor for downloading by parts
-    private final int ramp = 2;
 
     private class FileApiInputStream extends InputStream {
         private FileDownloadResponse apiResponse;
 
-        private long nextByteFromApi = 0;
-        private long startByteChecksumBuffer = 0;
-        private long endByteChecksumBuffer = 0;
-        private long chunkSize = minDownloadChunkSize;
-        private final long readEnd;
-        private final long readStart;
-        private long startRange;
-        private long endRange;
         private byte[] bytesFromApiCall;
-        private byte[] rawFileBytes;
-        private ByteArrayInputStream rawFileInputStream;
         private ByteArrayInputStream checksumBuffer;
         private byte[] checksumBytes;
-        private byte[] finishedChecksumBytes;
-        private int request = 1;
-        private int filePart = 1;
-        private int filePartSize;
-        private Describe partsMetadata;
+        private long chunkSize = minDownloadChunkSize;
         private final PartDownloader downloader;
+        private long endByteChecksumBuffer = 0;
+        private long endRange;
+        private int filePartInd = 0;
+        private List<Integer> fileParts;
+        private int filePartSize;
+        private byte[] finishedChecksumBytes;
+        private long nextByteFromApi = 0;
+        private Describe partsMetadata;
+        private byte[] rawFileBytes;
+        private ByteArrayInputStream rawFileInputStream;
+        private final long readEnd;
+        private final long readStart;
+        private int request = 1;
+        private long startByteChecksumBuffer = 0;
 
         private FileApiInputStream(long readStart, long readEnd, PartDownloader downloader) {
             // API call returns URL and headers for HTTP GET requests
@@ -273,6 +257,10 @@ public class DXFile extends DXDataObject {
 
             partsMetadata = describe(DXDataObject.DescribeOptions.get().withCustomFields("parts"));
 
+            // Get a sorted list of file parts
+            fileParts = new ArrayList<Integer>(partsMetadata.parts.keySet());
+            Collections.sort(fileParts);
+
             if (readEnd == -1) {
                 readEnd = describe().getSize();
             }
@@ -282,12 +270,12 @@ public class DXFile extends DXDataObject {
             this.downloader = downloader;
 
             // Determine which file part readStart belongs to
-            long filePartNext = partsMetadata.getChunkSize(filePart);
+            long filePartNext = partsMetadata.getChunkSize(fileParts.get(filePartInd));
             while (readStart >= filePartNext && filePartNext != 0) {
                 nextByteFromApi = filePartNext;
                 startByteChecksumBuffer = nextByteFromApi;
-                filePart++;
-                filePartNext = filePartNext + partsMetadata.getChunkSize(filePart);
+                filePartInd++;
+                filePartNext = filePartNext + partsMetadata.getChunkSize(fileParts.get(filePartInd));
             }
         }
 
@@ -322,7 +310,7 @@ public class DXFile extends DXDataObject {
                     return -1;
                 }
 
-                filePartSize = partsMetadata.getChunkSize(filePart);
+                filePartSize = partsMetadata.getChunkSize(fileParts.get(filePartInd));
                 while (rawFileBytes == null || rawFileBytes.length < filePartSize) {
                     // Ramp up download request size
                     if (chunkSize < maxDownloadChunkSize) {
@@ -332,9 +320,8 @@ public class DXFile extends DXDataObject {
                         }
                     }
 
-                    startRange = nextByteFromApi;
                     endRange = Math.min(nextByteFromApi + chunkSize - 1, describe().getSize() - 1);
-                    bytesFromApiCall = this.downloader.get(apiResponse.url, startRange, endRange);
+                    bytesFromApiCall = this.downloader.get(apiResponse.url, nextByteFromApi, endRange);
                     request++;
 
                     if (rawFileBytes != null) {
@@ -353,7 +340,7 @@ public class DXFile extends DXDataObject {
                 // Multiple file parts may need to be checksummed
                 while (rawFileInputStream.available() >= filePartSize) {
                     // File part's MD5 stored in file's meta data
-                    String metadataChecksum = partsMetadata.getMD5(filePart);
+                    String metadataChecksum = partsMetadata.getMD5(fileParts.get(filePartInd));
                     checksumBytes = new byte[filePartSize];
                     rawFileInputStream.read(checksumBytes, 0, filePartSize);
                     // Verify that MD5 of the downloaded data is the same as the MD5 in the metadata
@@ -365,23 +352,24 @@ public class DXFile extends DXDataObject {
                             finishedChecksumBytes = checksumBytes;
                         }
                     } catch (AssertionError e) {
-                        throw new IOException("Checksumming failed with file part " + filePart);
+                        throw new IOException("Checksumming failed with file part " + fileParts.get(filePartInd));
                     }
-                    filePart ++;
+                    filePartInd ++;
                     try {
-                        filePartSize = partsMetadata.getChunkSize(filePart);
-                    } catch(NullPointerException e) {
+                        filePartSize = partsMetadata.getChunkSize(fileParts.get(filePartInd));
+                    } catch(IndexOutOfBoundsException e) {
                         break;
                     }
                 }
 
                 // Bytes that were not checksummed are restored
                 rawFileBytes = IOUtils.toByteArray(rawFileInputStream);
+
                 checksumBuffer = new ByteArrayInputStream(finishedChecksumBytes);
                 assert(checksumBuffer.available() == finishedChecksumBytes.length);
             }
 
-            // Return bytes to caller after checksumming part
+            // Return bytes to caller
             int bytesToRead = 0;
             int bytesRead = 0;
             if (readStart > startByteChecksumBuffer) {
@@ -405,7 +393,6 @@ public class DXFile extends DXDataObject {
             return bytesRead;
         }
     }
-
     private class FileApiOutputStream extends OutputStream {
         private int index = 1;
         private ByteArrayOutputStream unwrittenBytes = new ByteArrayOutputStream();
@@ -458,6 +445,7 @@ public class DXFile extends DXDataObject {
             this.preauth = preauth;
         }
     }
+
     /**
      * Deserialized output from the /file-xxxx/download route.
      */
@@ -498,7 +486,6 @@ public class DXFile extends DXDataObject {
             this.index = index;
         }
     }
-
     /**
      * Response from /file-xxxx/upload
      */
@@ -508,6 +495,42 @@ public class DXFile extends DXDataObject {
         private Map<String, String> headers;
         @JsonProperty
         private String url;
+    }
+    /**
+     * HTTP GET request to download part of the file.
+     *
+     * @param url URL to which an HTTP GET request is made to download the file
+     * @param chunkStart beginning of the part (in the byte array containing the file contents) to
+     *        be downloaded. This index is inclusive in the range.
+     * @param chunkEnd end of the part (in the byte array containing the file contents) to be
+     *        downloaded. This index is inclusive in the range.
+     *
+     * @return byte array containing the part of the file contents that is downloaded
+     *
+     * @throws ClientProtocolException HTTP request to the download URL cannot be executed
+     * @throws IOException unable to get file contents from HTTP response
+     */
+    private static class HTTPPartDownloader implements PartDownloader {
+        @Override
+        public byte[] get(String url, long start, long end) throws ClientProtocolException, IOException {
+            Preconditions.checkState(end - start <= (long) 2 * 1024 * 1024 * 1024,
+                    "Download chunk size cannot be larger than 2GB");
+            HttpClient httpclient = HttpClientBuilder.create().setUserAgent(USER_AGENT).build();
+
+            // HTTP GET request with bytes/_ge range header
+            HttpGet request = new HttpGet(url);
+            request.addHeader("Range", "bytes=" + start + "-" + end);
+
+            HttpResponse response = executeRequestWithRetry(httpclient, request);
+            InputStream content = response.getEntity().getContent();
+
+            return IOUtils.toByteArray(content);
+        }
+    }
+
+    @VisibleForTesting
+    interface PartDownloader {
+        byte[] get(String url, long start, long end) throws ClientProtocolException, IOException;
     }
 
     private static final String USER_AGENT = DXUserAgent.getUserAgent();
@@ -636,43 +659,6 @@ public class DXFile extends DXDataObject {
     }
 
     /**
-     * HTTP GET request to download part of the file.
-     *
-     * @param url URL to which an HTTP GET request is made to download the file
-     * @param chunkStart beginning of the part (in the byte array containing the file contents) to
-     *        be downloaded. This index is inclusive in the range.
-     * @param chunkEnd end of the part (in the byte array containing the file contents) to be
-     *        downloaded. This index is inclusive in the range.
-     *
-     * @return byte array containing the part of the file contents that is downloaded
-     *
-     * @throws ClientProtocolException HTTP request to the download URL cannot be executed
-     * @throws IOException unable to get file contents from HTTP response
-     */
-    private static class HTTPPartDownloader implements PartDownloader {
-        @Override
-        public byte[] get(String url, long start, long end) throws ClientProtocolException, IOException {
-            Preconditions.checkState(end - start <= (long) 2 * 1024 * 1024 * 1024,
-                    "Download chunk size cannot be larger than 2GB");
-            HttpClient httpclient = HttpClientBuilder.create().setUserAgent(USER_AGENT).build();
-
-            // HTTP GET request with bytes/_ge range header
-            HttpGet request = new HttpGet(url);
-            request.addHeader("Range", "bytes=" + start + "-" + end);
-
-            HttpResponse response = executeRequestWithRetry(httpclient, request);
-            InputStream content = response.getEntity().getContent();
-
-            return IOUtils.toByteArray(content);
-        }
-    }
-
-    @VisibleForTesting
-    interface PartDownloader {
-        byte[] get(String url, long start, long end) throws ClientProtocolException, IOException;
-    }
-
-    /**
      * Sleeps for the specified amount of time. Throws a {@link RuntimeException} if interrupted.
      *
      * @param seconds number of seconds to sleep for
@@ -684,6 +670,14 @@ public class DXFile extends DXDataObject {
             throw new RuntimeException(e);
         }
     }
+
+    // Variables for download
+    private final int maxDownloadChunkSize = 16 * 1024 * 1024;
+    private final int minDownloadChunkSize = 64 * 1024;
+    private final int numRequestsBetweenRamp = 4;
+
+    // Ramp up factor for downloading by parts
+    private final int ramp = 2;
 
     // Variables for upload
     @VisibleForTesting

@@ -82,6 +82,41 @@ public class DXFileTest {
     }
 
     @Test
+    public void testChecksumming() throws IOException {
+        // Upload bytes
+        byte[] uploadBytes = new byte[10 * 1024 * 1024];
+        new Random().nextBytes(uploadBytes);
+
+        DXFile f = DXFile.newFile().setProject(testProject).build();
+        // Max chunk size 5mb
+        f.uploadChunkSize = 5 * 1024 * 1024;
+        f.upload(uploadBytes);
+        f.closeAndWait();
+
+        // Now download the file while recording API calls against S3
+        DXFile.PartDownloader mockPartDownloader = mock(DXFile.PartDownloader.class);
+        InputStream is = f.getDownloadStream(mockPartDownloader);
+
+        when(mockPartDownloader.get(anyString(), lt(5242880L), lt(5242880L))).thenReturn(
+                Arrays.copyOfRange(uploadBytes, 0, 5 * 1024 * 1024));
+        // Checksum should fail here
+        when(mockPartDownloader.get(anyString(), gt(5242879L), gt(5242879L))).thenReturn(
+                Arrays.copyOfRange(uploadBytes, 0, 5 * 1024 * 1024));
+
+        byte[] b = new byte[5 * 1024 * 1024];
+        is.read(b, 0, 5 * 1024 * 1024);
+        Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 0, 5 * 1024 * 1024), b);
+
+        try {
+            b = new byte[1];
+            is.read(b, 0, 1);
+            Assert.fail();
+        } catch (IOException e) {
+            // expected
+        }
+    }
+
+    @Test
     public void testCreateFileSerialization() throws IOException {
         Assert.assertEquals(
                 DXJSON.parseJson("{\"project\":\"project-000011112222333344445555\", \"name\": \"foo\", \"media\": \"application/json\"}"),
@@ -248,6 +283,28 @@ public class DXFileTest {
     }
 
     @Test
+    public void testDownloadReadStartEnd() throws IOException {
+        // Upload bytes
+        byte[] uploadBytes = new byte[10 * 1024 * 1024];
+        new Random().nextBytes(uploadBytes);
+
+        DXFile f = DXFile.newFile().setProject(testProject).build();
+        // Max chunk size 5mb
+        f.uploadChunkSize = 5 * 1024 * 1024;
+        f.upload(uploadBytes);
+        f.closeAndWait();
+
+        byte[] downloadBytes = f.downloadBytes(0, 4 * 1024 * 1024);
+        Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 0, 4 * 1024 * 1024), downloadBytes);
+
+        downloadBytes = f.downloadBytes(4 * 1024 * 1024, 6 * 1024 * 1024);
+        Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 4 * 1024 * 1024, 6 * 1024 * 1024), downloadBytes);
+
+        downloadBytes = f.downloadBytes(6 * 1024 * 1024, -1);
+        Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 6 * 1024 * 1024, 10 * 1024 * 1024), downloadBytes);
+    }
+
+    @Test
     public void testGetInstance() {
         DXFile file = DXFile.getInstance("file-000000000000000000000000");
         Assert.assertEquals("file-000000000000000000000000", file.getId());
@@ -406,6 +463,19 @@ public class DXFileTest {
         Assert.assertArrayEquals(uploadBytes, bytesFromDownloadStream);
     }
 
+    @Test
+    public void testUploadLessThan5MB() throws IOException {
+        byte[] uploadBytes = new byte[4 * 1024 * 1024];
+        new Random().nextBytes(uploadBytes);
+
+        DXFile f = DXFile.newFile().setProject(testProject).build();
+        f.upload(uploadBytes);
+        f.closeAndWait();
+        byte[] downloadBytes = f.downloadBytes();
+
+        Assert.assertArrayEquals(uploadBytes, downloadBytes);
+    }
+
     public void testUploadNullBytesBuilderFails() {
         Builder b = DXFile.newFile().setProject(testProject);
         thrown.expect(NullPointerException.class);
@@ -431,6 +501,34 @@ public class DXFileTest {
         DXFile f = DXFile.newFile().setProject(testProject).build();
         thrown.expect(NullPointerException.class);
         f.upload((InputStream) null);
+    }
+
+    @Test
+    public void testUploadOutputStreamWrite() throws IOException {
+        byte[] uploadBytes = new byte[6 * 1024 * 1024];
+        new Random().nextBytes(uploadBytes);
+
+        // Write byte by byte directly to OutputStream
+        DXFile f = DXFile.newFile().setProject(testProject).build();
+        OutputStream os = f.getUploadStream();
+        for (int i = 0; i < uploadBytes.length; i++) {
+            os.write(uploadBytes[i]);
+        }
+        os.close();
+        f.closeAndWait();
+        byte[] downloadBytes = f.downloadBytes();
+
+        Assert.assertArrayEquals(uploadBytes, downloadBytes);
+
+        // Write byte array directly to OutputStream
+        f = DXFile.newFile().setProject(testProject).build();
+        os = f.getUploadStream();
+        os.write(uploadBytes);
+        os.close();
+        f.closeAndWait();
+        downloadBytes = f.downloadBytes();
+
+        Assert.assertArrayEquals(uploadBytes, downloadBytes);
     }
 
     @Test
@@ -473,103 +571,5 @@ public class DXFileTest {
         bytesFromDownloadStream = IOUtils.toByteArray(f.getDownloadStream());
 
         Assert.assertArrayEquals(uploadBytes, bytesFromDownloadStream);
-    }
-
-    @Test
-    public void testUploadLessThan5MB() throws IOException {
-        byte[] uploadBytes = new byte[4 * 1024 * 1024];
-        new Random().nextBytes(uploadBytes);
-
-        DXFile f = DXFile.newFile().setProject(testProject).build();
-        f.upload(uploadBytes);
-        f.closeAndWait();
-        byte[] downloadBytes = f.downloadBytes();
-
-        Assert.assertArrayEquals(uploadBytes, downloadBytes);
-    }
-
-    @Test
-    public void testUploadOutputStreamWrite() throws IOException {
-        byte[] uploadBytes = new byte[6 * 1024 * 1024];
-        new Random().nextBytes(uploadBytes);
-
-        // Write byte by byte directly to OutputStream
-        DXFile f = DXFile.newFile().setProject(testProject).build();
-        OutputStream os = f.getUploadStream();
-        for (int i = 0; i < uploadBytes.length; i++) {
-            os.write(uploadBytes[i]);
-        }
-        os.close();
-        f.closeAndWait();
-        byte[] downloadBytes = f.downloadBytes();
-
-        Assert.assertArrayEquals(uploadBytes, downloadBytes);
-
-        // Write byte array directly to OutputStream
-        f = DXFile.newFile().setProject(testProject).build();
-        os = f.getUploadStream();
-        os.write(uploadBytes);
-        os.close();
-        f.closeAndWait();
-        downloadBytes = f.downloadBytes();
-
-        Assert.assertArrayEquals(uploadBytes, downloadBytes);
-    }
-
-    @Test
-    public void testDownloadReadStartEnd() throws IOException {
-        // Upload bytes
-        byte[] uploadBytes = new byte[10 * 1024 * 1024];
-        new Random().nextBytes(uploadBytes);
-
-        DXFile f = DXFile.newFile().setProject(testProject).build();
-        // Max chunk size 5mb
-        f.uploadChunkSize = 5 * 1024 * 1024;
-        f.upload(uploadBytes);
-        f.closeAndWait();
-
-        byte[] downloadBytes = f.downloadBytes(0, 4 * 1024 * 1024);
-        Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 0, 4 * 1024 * 1024), downloadBytes);
-
-        downloadBytes = f.downloadBytes(4 * 1024 * 1024, 6 * 1024 * 1024);
-        Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 4 * 1024 * 1024, 6 * 1024 * 1024), downloadBytes);
-
-        downloadBytes = f.downloadBytes(6 * 1024 * 1024, -1);
-        Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 6 * 1024 * 1024, 10 * 1024 * 1024), downloadBytes);
-    }
-
-    @Test
-    public void testChecksumming() throws IOException {
-        // Upload bytes
-        byte[] uploadBytes = new byte[10 * 1024 * 1024];
-        new Random().nextBytes(uploadBytes);
-
-        DXFile f = DXFile.newFile().setProject(testProject).build();
-        // Max chunk size 5mb
-        f.uploadChunkSize = 5 * 1024 * 1024;
-        f.upload(uploadBytes);
-        f.closeAndWait();
-
-        // Now download the file while recording API calls against S3
-        DXFile.PartDownloader mockPartDownloader = mock(DXFile.PartDownloader.class);
-        InputStream is = f.getDownloadStream(mockPartDownloader);
-
-        when(mockPartDownloader.get(anyString(), lt(5242880L), lt(5242880L))).thenReturn(
-                Arrays.copyOfRange(uploadBytes, 0, 5 * 1024 * 1024));
-        // Checksum should fail here
-        when(mockPartDownloader.get(anyString(), gt(5242879L), gt(5242879L))).thenReturn(
-                Arrays.copyOfRange(uploadBytes, 0, 5 * 1024 * 1024));
-
-        byte[] b = new byte[5 * 1024 * 1024];
-        is.read(b, 0, 5 * 1024 * 1024);
-        Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 0, 5 * 1024 * 1024), b);
-
-        try {
-            b = new byte[1];
-            is.read(b, 0, 1);
-            Assert.fail();
-        } catch (IOException e) {
-            // expected
-        }
     }
 }
