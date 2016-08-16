@@ -3572,6 +3572,10 @@ class TestDXClientWorkflow(DXTestCase):
 
 class TestDXClientFind(DXTestCase):
 
+    def assert_cmd_gives_ids(self, cmd, ids):
+        self.assertEqual(set(execid.strip() for execid in run(cmd).splitlines()),
+                         set(ids))
+
     def test_dx_find_apps(self):
         # simple test here does not assume anything about apps that do
         # or do not exist
@@ -4046,32 +4050,28 @@ class TestDXClientFind(DXTestCase):
         self.assertEqual(len(run("dx find jobs "+options2).splitlines()), 0)
         self.assertEqual(len(run("dx find analyses "+options2).splitlines()), 0)
 
-        def assert_cmd_gives_ids(cmd, ids):
-            self.assertEqual(set(execid.strip() for execid in run(cmd).splitlines()),
-                             set(ids))
-
         # Search by tag
         options2 = options + " --all-jobs --brief"
         options3 = options2 + " --tag foo"
         analysis_id = dxanalysis.get_id()
         job_id = dxjob.get_id()
-        assert_cmd_gives_ids("dx find executions "+options3, [analysis_id, job_id])
-        assert_cmd_gives_ids("dx find jobs "+options3, [job_id])
-        assert_cmd_gives_ids("dx find analyses "+options3, [analysis_id])
+        self.assert_cmd_gives_ids("dx find executions "+options3, [analysis_id, job_id])
+        self.assert_cmd_gives_ids("dx find jobs "+options3, [job_id])
+        self.assert_cmd_gives_ids("dx find analyses "+options3, [analysis_id])
         options3 = options2 + " --tag foo --tag bar"
-        assert_cmd_gives_ids("dx find executions "+options3, [job_id])
-        assert_cmd_gives_ids("dx find jobs "+options3, [job_id])
-        assert_cmd_gives_ids("dx find analyses "+options3, [])
+        self.assert_cmd_gives_ids("dx find executions "+options3, [job_id])
+        self.assert_cmd_gives_ids("dx find jobs "+options3, [job_id])
+        self.assert_cmd_gives_ids("dx find analyses "+options3, [])
 
         # Search by property (presence and by value)
         options3 = options2 + " --property foo"
-        assert_cmd_gives_ids("dx find executions "+options3, [analysis_id, job_id])
-        assert_cmd_gives_ids("dx find jobs "+options3, [job_id])
-        assert_cmd_gives_ids("dx find analyses "+options3, [analysis_id])
+        self.assert_cmd_gives_ids("dx find executions "+options3, [analysis_id, job_id])
+        self.assert_cmd_gives_ids("dx find jobs "+options3, [job_id])
+        self.assert_cmd_gives_ids("dx find analyses "+options3, [analysis_id])
         options3 = options2 + " --property foo=baz"
-        assert_cmd_gives_ids("dx find executions "+options3, [job_id])
-        assert_cmd_gives_ids("dx find jobs "+options3, [job_id])
-        assert_cmd_gives_ids("dx find analyses "+options3, [])
+        self.assert_cmd_gives_ids("dx find executions "+options3, [job_id])
+        self.assert_cmd_gives_ids("dx find jobs "+options3, [job_id])
+        self.assert_cmd_gives_ids("dx find analyses "+options3, [])
 
     @unittest.skipUnless(testutil.TEST_RUN_JOBS,
                          'skipping test that would run a job')
@@ -4090,8 +4090,10 @@ class TestDXClientFind(DXTestCase):
                                      "interpreter": "bash",
                                      "execDepends": [{"name": "dx-toolkit"}]},
                             project=temp_proj_id)
+
             dxworkflow = dxpy.new_dxworkflow(name='test_workflow', project=temp_proj_id)
-            workflow_id = dxworkflow.get_id()
+            dxworkflow.add_stage(dxsubapplet, stage_input={})
+
             dxapplet.new(name="workflow_runner",
                          dxapi="1.0.0",
                          inputSpec=[],
@@ -4100,8 +4102,10 @@ class TestDXClientFind(DXTestCase):
                                   "interpreter": "bash",
                                   "execDepends": [{"name": "dx-toolkit"}]},
                          project=temp_proj_id)
-            dxworkflow.add_stage(dxsubapplet, stage_input={})
+
             job_id = dxapplet.run(applet_input={}, project=temp_proj_id).get_id()
+            workflow_id = dxworkflow.get_id()
+            jobapplet_id = dxapplet.get_id()
 
             cd("{project_id}:/".format(project_id=dxapplet.get_proj_id()))
 
@@ -4113,7 +4117,7 @@ class TestDXClientFind(DXTestCase):
                     break
                 except IndexError:
                     t += 1
-                    if t > 120:
+                    if t > 300:
                         raise Exception("Timeout while waiting for workflow to be run by root execution")
                     time.sleep(1)
 
@@ -4130,42 +4134,42 @@ class TestDXClientFind(DXTestCase):
                         raise Exception("Timeout while waiting for job to be created for an analysis stage")
                     time.sleep(1)
 
-            def assert_cmd_gives_ids(cmd, ids):
-                self.assertEqual(set(execid.strip() for execid in cmd.splitlines()),
-                                 set(ids))
-
             options = "--brief --user=self --project="+temp_proj_id
-            assert_cmd_gives_ids(run("dx find executions "+options), [job_id, analysis_id, subjob_id])
-            assert_cmd_gives_ids(run("dx find jobs "+options), [job_id, subjob_id])
-            assert_cmd_gives_ids(run("dx find analyses "+options), [analysis_id])
+            self.assert_cmd_gives_ids("dx find executions "+options, [job_id, analysis_id, subjob_id])
+            self.assert_cmd_gives_ids("dx find jobs "+options, [job_id, subjob_id])
+            self.assert_cmd_gives_ids("dx find analyses "+options, [analysis_id])
             options2 = options + " --applet="+workflow_id
-            assert_cmd_gives_ids(run("dx find executions "+options2), [job_id, analysis_id, subjob_id])
-            assert_cmd_gives_ids(run("dx find jobs "+options2), [])
-            assert_cmd_gives_ids(run("dx find analyses "+options2), [analysis_id])
+            self.assert_cmd_gives_ids("dx find executions "+options2, [job_id, analysis_id, subjob_id])
+            self.assert_cmd_gives_ids("dx find jobs "+options2, [])
+            self.assert_cmd_gives_ids("dx find analyses "+options2, [analysis_id])
+            options2 = options + " --applet="+jobapplet_id
+            self.assert_cmd_gives_ids("dx find executions "+options2, [job_id, analysis_id, subjob_id])
+            self.assert_cmd_gives_ids("dx find jobs "+options2, [job_id])
+            self.assert_cmd_gives_ids("dx find analyses "+options2, [])
             options2 = options + " -n 9000"
-            assert_cmd_gives_ids(run("dx find executions "+options2), [job_id, analysis_id, subjob_id])
-            assert_cmd_gives_ids(run("dx find jobs "+options2), [job_id, subjob_id])
-            assert_cmd_gives_ids(run("dx find analyses "+options2), [analysis_id])
+            self.assert_cmd_gives_ids("dx find executions "+options2, [job_id, analysis_id, subjob_id])
+            self.assert_cmd_gives_ids("dx find jobs "+options2, [job_id, subjob_id])
+            self.assert_cmd_gives_ids("dx find analyses "+options2, [analysis_id])
             options3 = options2 + " --origin="+job_id
-            assert_cmd_gives_ids(run("dx find executions "+options3), [job_id, analysis_id, subjob_id])
-            assert_cmd_gives_ids(run("dx find jobs "+options3), [job_id])
-            assert_cmd_gives_ids(run("dx find analyses "+options3), [analysis_id])
+            self.assert_cmd_gives_ids("dx find executions "+options3, [job_id, analysis_id, subjob_id])
+            self.assert_cmd_gives_ids("dx find jobs "+options3, [job_id])
+            self.assert_cmd_gives_ids("dx find analyses "+options3, [analysis_id])
             options2 = options + " --origin-jobs"
-            assert_cmd_gives_ids(run("dx find executions "+options2), [job_id, subjob_id])
-            assert_cmd_gives_ids(run("dx find jobs "+options2), [job_id, subjob_id])
-            assert_cmd_gives_ids(run("dx find analyses "+options2), [])
+            self.assert_cmd_gives_ids("dx find executions "+options2, [job_id, subjob_id])
+            self.assert_cmd_gives_ids("dx find jobs "+options2, [job_id, subjob_id])
+            self.assert_cmd_gives_ids("dx find analyses "+options2, [])
             options2 = options + " --origin-jobs -n 9000"
-            assert_cmd_gives_ids(run("dx find executions "+options2), [job_id, subjob_id])
-            assert_cmd_gives_ids(run("dx find jobs "+options2), [job_id, subjob_id])
-            assert_cmd_gives_ids(run("dx find analyses "+options2), [])
+            self.assert_cmd_gives_ids("dx find executions "+options2, [job_id, subjob_id])
+            self.assert_cmd_gives_ids("dx find jobs "+options2, [job_id, subjob_id])
+            self.assert_cmd_gives_ids("dx find analyses "+options2, [])
             options2 = options + " --all-jobs"
-            assert_cmd_gives_ids(run("dx find executions "+options2), [job_id, analysis_id, subjob_id])
-            assert_cmd_gives_ids(run("dx find jobs "+options2), [job_id, subjob_id])
-            assert_cmd_gives_ids(run("dx find analyses "+options2), [analysis_id])
+            self.assert_cmd_gives_ids("dx find executions "+options2, [job_id, analysis_id, subjob_id])
+            self.assert_cmd_gives_ids("dx find jobs "+options2, [job_id, subjob_id])
+            self.assert_cmd_gives_ids("dx find analyses "+options2, [analysis_id])
             options2 = options + " --state=done"
-            assert_cmd_gives_ids(run("dx find executions "+options2), [])
-            assert_cmd_gives_ids(run("dx find jobs "+options2), [])
-            assert_cmd_gives_ids(run("dx find analyses "+options2), [])
+            self.assert_cmd_gives_ids("dx find executions "+options2, [])
+            self.assert_cmd_gives_ids("dx find jobs "+options2, [])
+            self.assert_cmd_gives_ids("dx find analyses "+options2, [])
 
     @unittest.skipUnless(testutil.TEST_ISOLATED_ENV,
                          'skipping test that requires presence of test org')
