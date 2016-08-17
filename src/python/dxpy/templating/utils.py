@@ -154,6 +154,29 @@ def get_version(default=None):
     version = prompt_for_var('Version', default)
     return version
 
+def get_timeout(default=None):
+    if default is None:
+        default = '48h'
+    # Max timeout is 30 days or 30 * 24 * 60 minutes
+    max_timeout_in_minutes = 30 * 24 * 60
+    suffix_multipliers = {'m': 1, 'h': 60, 'd': 60*24}
+    units = {'m': 'minutes', 'h': 'hours', 'd': 'days'}
+    print('')
+    print(fill('Set a ' + BOLD() + 'timeout policy' + ENDC() + ' for your app. Any single entry point of the app that runs longer than the specified timeout will fail with a TimeoutExceeded error. Enter an int with a single-letter suffix (m=minutes, h=hours, d=days) (e.g. "48h").'))
+    time_pattern = re.compile('^\d+[mhd]$')
+    while True:
+        timeout = prompt_for_var('Timeout policy', default)
+        if (time_pattern.match(timeout) is None) or (timeout[-1] not in suffix_multipliers):
+            print(fill('Enter an int with a single-letter suffix (m=minutes, h=hours, d=days)'))
+            continue
+        timeout_in_minutes = int(timeout[:-1]) * suffix_multipliers[timeout[-1]]
+        if timeout_in_minutes > max_timeout_in_minutes or timeout_in_minutes <= 0:
+            print(fill('Timeout must be less than 30 days and greater than 0 minutes'))
+            continue
+        else:
+            break
+    return timeout[:-1], units[timeout[-1]]
+
 def get_ordinal_str(num):
     return str(num) + ('th' if 11 <= num % 100 <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(num % 10, 'th'))
 
@@ -167,10 +190,35 @@ def get_language():
     use_completer()
     return language
 
-def get_pattern(pattern):
-    print(fill('The selected execution pattern "' + pattern + '"is currently not available for your programming language:'))
-    print('Automatically using the execution pattern "basic"')
-    return 'basic'
+def get_pattern(template_dir):
+    pattern_choices = []
+    print('')
+    print(fill('The following common ' + BOLD() + 'execution patterns' + ENDC() + ' are currently available for your programming language:'))
+
+    pattern_choices.append('basic')
+    print(' ' + BOLD() + 'basic' + ENDC())
+    print(fill('Your app will run on a single machine from beginning to end.', initial_indent='   ', subsequent_indent='   '))
+
+    if os.path.isdir(os.path.join(template_dir, 'parallelized')):
+        pattern_choices.append('parallelized')
+        print(' ' + BOLD() + 'parallelized' + ENDC())
+        print(fill('Your app will subdivide a large chunk of work into multiple pieces that can be processed in parallel and independently of each other, followed by a final stage that will merge and process the results as necessary.', initial_indent='   ', subsequent_indent='   '))
+
+    if os.path.isdir(os.path.join(template_dir, 'scatter-process-gather')):
+        pattern_choices.append('scatter-process-gather')
+        print(' ' + BOLD() + 'scatter-process-gather' + ENDC())
+        print(fill('Similar to ' + BOLD() + 'parallelized' + ENDC() + ' but with the addition of a "scatter" entry point.  This allows you to break out the execution for splitting up the input, or you can call a separate app/applet to perform the splitting.',
+                   initial_indent='   ',
+                   subsequent_indent='   '))
+
+    if len(pattern_choices) == 1:
+        print('Automatically using the execution pattern "basic"')
+        return 'basic'
+
+    use_completer(Completer(pattern_choices))
+    pattern = prompt_for_var('Execution pattern', 'basic', choices=pattern_choices)
+    use_completer()
+    return pattern
 
 def fill_in_name_and_ver(template_string, name, version):
     '''

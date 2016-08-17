@@ -26,7 +26,7 @@ from collections import OrderedDict
 import dxpy
 from dxpy.templating.utils import (print_intro, get_name, get_version, get_metadata, Completer, get_ordinal_str,
                                    prompt_for_var, prompt_for_yn, use_completer, get_language, language_options,
-                                   get_pattern, fill_in_name_and_ver, clean, create_files_from_templates)
+                                   get_pattern, get_timeout, fill_in_name_and_ver, clean, create_files_from_templates)
 from dxpy.utils.printing import fill, BOLD, UNDERLINE, DNANEXUS_LOGO, ENDC
 from dxpy.app_categories import APP_CATEGORIES
 from dxpy.utils.completer import InstanceTypesCompleter
@@ -96,6 +96,8 @@ def main(**kwargs):
 
         version = get_version()
 
+        timeout, timeout_units = get_timeout()
+
         app_json = OrderedDict()
         app_json["name"] = name
 
@@ -104,6 +106,10 @@ def main(**kwargs):
 
         app_json["dxapi"] = API_VERSION
         app_json["version"] = version
+
+        app_json.setdefault('timeoutPolicy', {})
+        app_json['timeoutPolicy'].setdefault('*', {})
+        app_json['timeoutPolicy']['*'].setdefault(timeout_units, timeout)
 
         ############
         # IO SPECS #
@@ -299,10 +305,14 @@ array:boolean  array:int      boolean        hash           string''')
     interpreter = language_options[language].get_interpreter()
     app_json["runSpec"] = OrderedDict({"interpreter": interpreter})
 
-    # Verify execution pattern, otherwise default to 'basic'
+    # Prompt the execution pattern if the manually entered pattern is invalid
 
     template_dir = os.path.join(os.path.dirname(dxpy.__file__), 'templating', 'templates', language_options[language].get_path())
-    pattern = args.template if os.path.isdir(os.path.join(template_dir, args.template)) else get_pattern(args.template)
+    if (args.template == 'basic') or (os.path.isdir(os.path.join(template_dir, args.template))):
+        pattern = args.template
+    else:
+        print(fill('The execution pattern "' + args.template + '" is not available for your programming language'))
+        pattern = get_pattern(template_dir)
     template_dir = os.path.join(template_dir, pattern)
 
     with open(os.path.join(template_dir, 'dxapp.json'), 'r') as template_app_json_file:
@@ -358,14 +368,6 @@ array:boolean  array:int      boolean        hash           string''')
     app_json['runSpec'].setdefault('systemRequirements', {})
     app_json['runSpec']['systemRequirements'].setdefault('*', {})
     app_json['runSpec']['systemRequirements']['*']['instanceType'] = instance_type
-
-    ########################
-    # TIMEOUT POLICY #
-    ########################
-
-    app_json.setdefault('timeoutPolicy', {})
-    app_json['timeoutPolicy'].setdefault('*', {})
-    app_json['timeoutPolicy']['*'].setdefault('hours', 48)
 
     ######################
     # HARDCODED DEFAULTS #
