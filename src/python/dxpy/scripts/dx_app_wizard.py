@@ -73,7 +73,6 @@ def main(**kwargs):
             app_json['name'] = name
             version = get_version(default=app_json.get('version'))
             app_json['version'] = version
-        description = '<!-- Insert a description of your app here -->'
         try:
             os.mkdir(app_json['name'])
         except:
@@ -96,8 +95,6 @@ def main(**kwargs):
 
         version = get_version()
 
-        timeout, timeout_units = get_timeout()
-
         app_json = OrderedDict()
         app_json["name"] = name
 
@@ -106,10 +103,6 @@ def main(**kwargs):
 
         app_json["dxapi"] = API_VERSION
         app_json["version"] = version
-
-        app_json.setdefault('timeoutPolicy', {})
-        app_json['timeoutPolicy'].setdefault('*', {})
-        app_json['timeoutPolicy']['*'].setdefault(timeout_units, timeout)
 
         ############
         # IO SPECS #
@@ -291,6 +284,18 @@ array:boolean  array:int      boolean        hash           string''')
     if 'outputSpec' in app_json:
         file_output_names = [param['name'] for param in app_json['outputSpec'] if param['class'] == 'file']
 
+    ##################
+    # TIMEOUT POLICY #
+    ##################
+
+    print('')
+    print(BOLD() + 'Timeout Policy' + ENDC())
+    app_json.setdefault('timeoutPolicy', {})
+
+    timeout, timeout_units = get_timeout(default=app_json['timeoutPolicy'].get('*'))
+
+    app_json['timeoutPolicy']['*'] = {timeout_units: timeout}
+
     ########################
     # LANGUAGE AND PATTERN #
     ########################
@@ -305,14 +310,14 @@ array:boolean  array:int      boolean        hash           string''')
     interpreter = language_options[language].get_interpreter()
     app_json["runSpec"] = OrderedDict({"interpreter": interpreter})
 
-    # Prompt the execution pattern if the manually entered pattern is invalid
+    # Prompt the execution pattern iff the args.pattern is provided and invalid
 
     template_dir = os.path.join(os.path.dirname(dxpy.__file__), 'templating', 'templates', language_options[language].get_path())
-    if (args.template == 'basic') or (os.path.isdir(os.path.join(template_dir, args.template))):
-        pattern = args.template
-    else:
-        print(fill('The execution pattern "' + args.template + '" is not available for your programming language'))
+    if not os.path.isdir(os.path.join(template_dir, args.template)):
+        print(fill('The execution pattern "' + args.template + '" is not available for your programming language.'))
         pattern = get_pattern(template_dir)
+    else:
+        pattern = args.template
     template_dir = os.path.join(template_dir, pattern)
 
     with open(os.path.join(template_dir, 'dxapp.json'), 'r') as template_app_json_file:
@@ -429,6 +434,7 @@ the DNAnexus community, you must first specify your inputs and outputs.
                                             required_file_input_names, optional_file_input_names,
                                             required_file_array_input_names, optional_file_array_input_names,
                                             file_output_names, pattern,
+                                            description='<!-- Insert a description of your app here -->',
                                             entry_points=entry_points)
 
     print("Created files:")

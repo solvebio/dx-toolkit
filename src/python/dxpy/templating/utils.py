@@ -155,27 +155,31 @@ def get_version(default=None):
     return version
 
 def get_timeout(default=None):
+    # Max timeout is 30 days
+    max_timeout = {'m': 30 * 24 * 60, 'h': 30 * 24, 'd': 30}
+    units = {'m': 'minutes', 'h': 'hours', 'd': 'days'}
+    time_pattern = re.compile('^[1-9]\d*[mhd]$')
+
+    def timeout_dict_to_str(d):
+        # Used to convert app_json inputs:
+        # {'hours': 48} -> '48h'
+        return str(d.values()[0]) + d.keys()[0][0]
+
     if default is None:
         default = '48h'
-    # Max timeout is 30 days or 30 * 24 * 60 minutes
-    max_timeout_in_minutes = 30 * 24 * 60
-    suffix_multipliers = {'m': 1, 'h': 60, 'd': 60*24}
-    units = {'m': 'minutes', 'h': 'hours', 'd': 'days'}
+    else:
+        default = timeout_dict_to_str(default)
     print('')
-    print(fill('Set a ' + BOLD() + 'timeout policy' + ENDC() + ' for your app. Any single entry point of the app that runs longer than the specified timeout will fail with a TimeoutExceeded error. Enter an int with a single-letter suffix (m=minutes, h=hours, d=days) (e.g. "48h").'))
-    time_pattern = re.compile('^\d+[mhd]$')
+    print(fill('Set a ' + BOLD() + 'timeout policy' + ENDC() + ' for your app. Any single entry point of the app that runs longer than the specified timeout will fail with a TimeoutExceeded error. Enter an int greater than 0 with a single-letter suffix (m=minutes, h=hours, d=days) (e.g. "48h").'))
     while True:
         timeout = prompt_for_var('Timeout policy', default)
-        if (time_pattern.match(timeout) is None) or (timeout[-1] not in suffix_multipliers):
-            print(fill('Enter an int with a single-letter suffix (m=minutes, h=hours, d=days)'))
-            continue
-        timeout_in_minutes = int(timeout[:-1]) * suffix_multipliers[timeout[-1]]
-        if timeout_in_minutes > max_timeout_in_minutes or timeout_in_minutes <= 0:
-            print(fill('Timeout must be less than 30 days and greater than 0 minutes'))
-            continue
+        if not time_pattern.match(timeout):
+            print(fill('Error: enter an int with a single-letter suffix (m=minutes, h=hours, d=days)'))
+        elif int(timeout[:-1]) > max_timeout[timeout[-1]]:
+            print(fill('Error: max allowed timeout is 30 days'))
         else:
             break
-    return timeout[:-1], units[timeout[-1]]
+    return int(timeout[:-1]), units[timeout[-1]]
 
 def get_ordinal_str(num):
     return str(num) + ('th' if 11 <= num % 100 <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(num % 10, 'th'))
