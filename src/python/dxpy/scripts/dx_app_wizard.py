@@ -294,7 +294,8 @@ array:boolean  array:int      boolean        hash           string''')
 
     timeout, timeout_units = get_timeout(default=app_json['timeoutPolicy'].get('*'))
 
-    app_json['timeoutPolicy']['*'] = {timeout_units: timeout}
+    app_json['timeoutPolicy'].setdefault('*', {})
+    app_json['timeoutPolicy']['*'].setdefault(timeout_units, timeout)
 
     ########################
     # LANGUAGE AND PATTERN #
