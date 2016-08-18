@@ -229,7 +229,6 @@ public class DXFile extends DXDataObject {
         private FileDownloadResponse apiResponse;
 
         private byte[] bytesFromApiCall;
-        private ByteArrayInputStream checksumBuffer;
         private byte[] checksumBytes;
         private long chunkSize = minDownloadChunkSize;
         private final PartDownloader downloader;
@@ -238,10 +237,10 @@ public class DXFile extends DXDataObject {
         private int filePartInd = 0;
         private List<Integer> fileParts;
         private int filePartSize;
-        private byte[] finishedChecksumBytes;
+        private Queue<InputStream> finishQueue = new LinkedList();
         private long nextByteFromApi = 0;
         private Describe partsMetadata;
-        private Queue<InputStream> rawFileBytesQueue = new LinkedList();;
+        private Queue<InputStream> rawFileBytesQueue = new LinkedList();
         private int numBytesInQueue = 0;
         private InputStream rawFileStream;
         private final long readEnd;
@@ -309,7 +308,10 @@ public class DXFile extends DXDataObject {
             }
 
             // Request more data to buffer
-            if (checksumBuffer == null || checksumBuffer.available() == 0) {
+            if (finishQueue.peek().available() == 0) {
+            	finishQueue.remove();
+            }
+            if (finishQueue.size() == 0) {
                 if (nextByteFromApi >= readEnd) {
                     return -1;
                 }
@@ -340,9 +342,6 @@ public class DXFile extends DXDataObject {
                 assert (numBytesInQueue >= filePartSize);
 
                 // Checksum verification
-                // Will contain all the bytes that have been checksummed and not yet returned to the
-                // caller
-                finishedChecksumBytes = null;
                 // Multiple file parts may need to be checksummed
                 while (numBytesInQueue >= filePartSize) {
                     // File part's MD5 stored in file's meta data
@@ -365,13 +364,8 @@ public class DXFile extends DXDataObject {
                     try {
                         assert (DigestUtils.md5Hex(checksumBytes).equals(metadataChecksum));
 
-                        // The most recent checksummed bytes from is appended to the array of
-                        // checksummed bytes
-                        if (finishedChecksumBytes != null) {
-                            finishedChecksumBytes = Bytes.concat(finishedChecksumBytes, checksumBytes);
-                        } else {
-                            finishedChecksumBytes = checksumBytes;
-                        }
+                        // The most recent checksummed bytes is pushed into queue
+                        finishQueue.add(new ByteArrayInputStream(checksumBytes));
                     } catch (AssertionError e) {
                         throw new IOException("Checksumming failed with file part " + fileParts.get(filePartInd));
                     }
@@ -382,15 +376,14 @@ public class DXFile extends DXDataObject {
                         break;
                     }
                 }
-
-                checksumBuffer = new ByteArrayInputStream(finishedChecksumBytes);
-                assert (checksumBuffer.available() == finishedChecksumBytes.length);
             }
 
             // Return bytes to caller
             int bytesToRead = 0;
             int bytesRead = 0;
+            
             // Skips bytes that occur before readStart
+            InputStream checksumBuffer = finishQueue.peek();
             if (readStart > startByteChecksumBuffer) {
                 checksumBuffer.skip(readStart - startByteChecksumBuffer);
                 startByteChecksumBuffer = readStart;
@@ -405,7 +398,7 @@ public class DXFile extends DXDataObject {
                 bytesToRead = Math.min(numBytes, checksumBuffer.available() - (int) (endByteChecksumBuffer - readEnd));
                 bytesRead = checksumBuffer.read(b, off, bytesToRead);
             } else {
-                bytesToRead = Math.min(numBytes, checksumBuffer.available());
+                bytesToRead = Math.min(numBytes, finishQueue.peek().available());
                 bytesRead = checksumBuffer.read(b, off, bytesToRead);
             }
 
