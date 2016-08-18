@@ -82,7 +82,7 @@ def run_dx_app_wizard():
         wizard.expect("Timeout policy")
         wizard.sendline("31d")
         wizard.expect("Error: max allowed timeout is 30 days")
-        wizard.sendline("TциаЂаиЙаъэѓLаи")
+        wizard.sendline("ЄЯTЪЦGЇCЄкЇ")
         wizard.expect("Error: enter an int with a single-letter suffix")
         wizard.expect("Timeout policy")
         wizard.sendline("24h")
