@@ -51,7 +51,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.primitives.Bytes;
 
 /**
  * A file (an opaque sequence of bytes).
@@ -192,7 +191,19 @@ public class DXFile extends DXDataObject {
         }
 
         /**
+         * Returns a list of indices corresponding to parts of the file
+         *
+         * @return list of file part indices
+         */
+        public ArrayList<Integer> getFilePartsList() {
+            ArrayList<Integer> fileParts = new ArrayList<Integer>(parts.keySet());
+            Collections.sort(fileParts);
+            return fileParts;
+        }
+
+        /**
          * Returns the hexadecimal encoded value of MD5 message-digest of the specified file part.
+         * Throws a NullPointerException if the file part does not exist.
          *
          * @param index part index that was provided to the file upload call
          *
@@ -227,22 +238,15 @@ public class DXFile extends DXDataObject {
 
     private class FileApiInputStream extends InputStream {
         private FileDownloadResponse apiResponse;
-
-        private byte[] bytesFromApiCall;
-        private byte[] checksumBytes;
         private long chunkSize = minDownloadChunkSize;
         private final PartDownloader downloader;
-        private long endByteChecksumBuffer = 0;
-        private long endRange;
         private int filePartInd = 0;
         private List<Integer> fileParts;
-        private int filePartSize;
-        private Queue<InputStream> finishQueue = new LinkedList();
+        private Queue<InputStream> finishQueue = new LinkedList<InputStream>();
         private long nextByteFromApi = 0;
-        private Describe partsMetadata;
-        private Queue<InputStream> rawFileBytesQueue = new LinkedList();
         private int numBytesInQueue = 0;
-        private InputStream rawFileStream;
+        private Describe partsMetadata;
+        private Queue<InputStream> rawFileBytesQueue = new LinkedList<InputStream>();
         private final long readEnd;
         private final long readStart;
         private int request = 1;
@@ -261,8 +265,7 @@ public class DXFile extends DXDataObject {
             partsMetadata = describe(DXDataObject.DescribeOptions.get().withCustomFields("parts"));
 
             // Get a sorted list of file parts
-            fileParts = new ArrayList<Integer>(partsMetadata.parts.keySet());
-            Collections.sort(fileParts);
+            fileParts = partsMetadata.getFilePartsList();
 
             if (readEnd == -1) {
                 readEnd = describe().getSize();
@@ -307,16 +310,18 @@ public class DXFile extends DXDataObject {
                 return 0;
             }
 
-            // Request more data to buffer
-            if (finishQueue.peek().available() == 0) {
-            	finishQueue.remove();
+
+            if (finishQueue.size() != 0 && finishQueue.peek().available() == 0) {
+                finishQueue.remove();
             }
+
+            // Request more data to buffer
             if (finishQueue.size() == 0) {
                 if (nextByteFromApi >= readEnd) {
                     return -1;
                 }
 
-                filePartSize = partsMetadata.getChunkSize(fileParts.get(filePartInd));
+                int filePartSize = partsMetadata.getChunkSize(fileParts.get(filePartInd));
                 while (numBytesInQueue < filePartSize) {
                     // Ramp up download request size
                     if (chunkSize < maxDownloadChunkSize) {
@@ -327,8 +332,8 @@ public class DXFile extends DXDataObject {
                     }
 
                     // API request to download bytes
-                    endRange = Math.min(nextByteFromApi + chunkSize - 1, describe().getSize() - 1);
-                    bytesFromApiCall = this.downloader.get(apiResponse.url, nextByteFromApi, endRange);
+                    long endRange = Math.min(nextByteFromApi + chunkSize - 1, describe().getSize() - 1);
+                    byte[] bytesFromApiCall = this.downloader.get(apiResponse.url, nextByteFromApi, endRange);
                     request++;
 
                     // Stream of bytes retrieved from the API call pre-checksum
@@ -338,7 +343,6 @@ public class DXFile extends DXDataObject {
                     // Update the next starting byte range
                     nextByteFromApi = endRange + 1;
                 }
-
                 assert (numBytesInQueue >= filePartSize);
 
                 // Checksum verification
@@ -346,16 +350,16 @@ public class DXFile extends DXDataObject {
                 while (numBytesInQueue >= filePartSize) {
                     // File part's MD5 stored in file's meta data
                     String metadataChecksum = partsMetadata.getMD5(fileParts.get(filePartInd));
-                    checksumBytes = new byte[filePartSize];
+                    byte[] checksumBytes = new byte[filePartSize];
                     int bytesLeft = filePartSize;
                     while (bytesLeft > 0) {
                         if (rawFileBytesQueue.peek().available() == 0) {
                             rawFileBytesQueue.remove();
                         }
-                        rawFileStream = rawFileBytesQueue.peek();
+                        InputStream rawFileStream = rawFileBytesQueue.peek();
                         int checksumOff = filePartSize - bytesLeft;
-                        int bytesReadForChecksum =
-                                rawFileStream.read(checksumBytes, checksumOff, Math.min(rawFileStream.available(), bytesLeft));
+                        int bytesReadForChecksum = rawFileStream.read(checksumBytes, checksumOff,
+                                Math.min(rawFileStream.available(), bytesLeft));
                         bytesLeft = bytesLeft - bytesReadForChecksum;
                     }
                     numBytesInQueue = numBytesInQueue - filePartSize;
@@ -370,25 +374,26 @@ public class DXFile extends DXDataObject {
                         throw new IOException("Checksumming failed with file part " + fileParts.get(filePartInd));
                     }
                     filePartInd++;
-                    try {
-                        filePartSize = partsMetadata.getChunkSize(fileParts.get(filePartInd));
-                    } catch (IndexOutOfBoundsException e) {
+
+                    if (filePartInd >= fileParts.size()) {
+                        // Read past end of file
                         break;
                     }
+                    filePartSize = partsMetadata.getChunkSize(fileParts.get(filePartInd));
                 }
             }
 
             // Return bytes to caller
             int bytesToRead = 0;
             int bytesRead = 0;
-            
+
             // Skips bytes that occur before readStart
             InputStream checksumBuffer = finishQueue.peek();
             if (readStart > startByteChecksumBuffer) {
                 checksumBuffer.skip(readStart - startByteChecksumBuffer);
                 startByteChecksumBuffer = readStart;
             }
-            endByteChecksumBuffer = startByteChecksumBuffer + checksumBuffer.available();
+            long endByteChecksumBuffer = startByteChecksumBuffer + checksumBuffer.available();
 
             // Makes sure that only bytes up to readEnd are returned
             if (readEnd < endByteChecksumBuffer) {
@@ -401,7 +406,6 @@ public class DXFile extends DXDataObject {
                 bytesToRead = Math.min(numBytes, finishQueue.peek().available());
                 bytesRead = checksumBuffer.read(b, off, bytesToRead);
             }
-
             assert (bytesToRead == bytesRead);
             startByteChecksumBuffer = startByteChecksumBuffer + bytesRead;
 
@@ -416,7 +420,9 @@ public class DXFile extends DXDataObject {
         @Override
         public void close() throws IOException {
             // Flush out remaining bytes to upload
-            partUploadRequest(unwrittenBytes.toByteArray(), index);
+            if (unwrittenBytes.size() > 0 || index == 1) {
+                partUploadRequest(unwrittenBytes.toByteArray(), index);
+            }
             unwrittenBytes = new ByteArrayOutputStream();
         }
 

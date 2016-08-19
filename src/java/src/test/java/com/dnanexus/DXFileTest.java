@@ -16,9 +16,8 @@
 
 package com.dnanexus;
 
-import static org.mockito.AdditionalMatchers.gt;
-import static org.mockito.AdditionalMatchers.lt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -84,8 +83,8 @@ public class DXFileTest {
     @Test
     public void testChecksumming() throws IOException {
         // Upload bytes
-        byte[] uploadBytes = new byte[10 * 1024 * 1024];
-        new Random().nextBytes(uploadBytes);
+        byte[] uploadBytes = new byte[6 * 1024 * 1024];
+        Arrays.fill(uploadBytes, (byte) 0);
 
         DXFile f = DXFile.newFile().setProject(testProject).build();
         // Max chunk size 5mb
@@ -97,11 +96,36 @@ public class DXFileTest {
         DXFile.PartDownloader mockPartDownloader = mock(DXFile.PartDownloader.class);
         InputStream is = f.getDownloadStream(mockPartDownloader);
 
-        when(mockPartDownloader.get(anyString(), lt(5242880L), lt(5242880L))).thenReturn(
-                Arrays.copyOfRange(uploadBytes, 0, 5 * 1024 * 1024));
-        // Checksum should fail here
-        when(mockPartDownloader.get(anyString(), gt(5242879L), gt(5242879L))).thenReturn(
-                Arrays.copyOfRange(uploadBytes, 0, 5 * 1024 * 1024));
+        // Emulate ramp up behavior
+        int request = 1;
+        int minChunkSize = 64 * 1024;
+        int maxChunkSize = 16 * 1024 * 1024;
+        int chunksize = minChunkSize;
+
+        long start = 0;
+        long end;
+
+        while (start < uploadBytes.length) {
+            if (request > 4) {
+                chunksize = Math.min(chunksize * 2, maxChunkSize);
+                request = 1;
+            }
+
+            end = Math.min(start + chunksize, uploadBytes.length);
+
+            if (end == uploadBytes.length) {
+                byte[] corruptBytes = new byte[(int) (end - start)];
+                Arrays.fill(corruptBytes, (byte) 1);
+                when(mockPartDownloader.get(anyString(), eq(start), eq(end - 1))).thenReturn(
+                        corruptBytes);
+            } else {
+                when(mockPartDownloader.get(anyString(), eq(start), eq(end - 1))).thenReturn(
+                        Arrays.copyOfRange(uploadBytes, (int) start, (int) end));
+            }
+
+            start = end;
+            request++;
+        }
 
         byte[] b = new byte[5 * 1024 * 1024];
         is.read(b, 0, 5 * 1024 * 1024);
