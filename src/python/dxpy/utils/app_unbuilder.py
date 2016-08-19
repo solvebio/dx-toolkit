@@ -85,29 +85,41 @@ def dump_executable(executable, destination_directory, omit_resources=False, des
         # Get all the asset bundles
         asset_depends = []
         deps_to_remove = []
+        # BundledDepends are added to the dxapp.json in the following order:
+        # 1. bundledDepends
+        # 2. resources (contents of resources directory added as bundledDepends)
+        # 3. assetDepends (translated into bundledDepends)
+        #
+        # Therefore while translating bundledDepends to assetDepends, we are traversing the
+        # list in reverse order and exit, once we don't find the "AssetBundle" property
+        # with the tarball file.
+        #
+        # NOTE: If last item (and subsequesnt items) of bundleDepends (#1 above) refers to an
+        # AssetBundle tarball, those items will be converted to assetDepends.
+        #
+        # TODO: The bundledDepends should be annotated with another field called {"asset": true}
+        # to distinguish it from non assets. It will be needed to annotate the bundleDepends,
+        # when the wrapper record object is no more accessible.
         for dep in reversed(info["runSpec"]["bundledDepends"]):
             file_handle = get_handler(dep["id"])
             if isinstance(file_handle, dxpy.DXFile):
                 asset_record_id = file_handle.get_properties().get("AssetBundle")
                 if asset_record_id:
-                    asset_record = None
-                    # If record data object could not be initialized for some reason
-                    # ex. permission restrictions, etc. move on to the next one
                     try:
                         asset_record = dxpy.DXRecord(asset_record_id)
-                    except:
-                        pass
-                    if asset_record:
-                        deps_to_remove.append(dep)
                         asset_depends.append({"name": asset_record.describe().get("name"),
                                               "project": asset_record.get_proj_id(),
                                               "folder": asset_record.describe().get("folder"),
                                               "version": asset_record.describe(fields={"properties": True}
                                                                                )["properties"]["version"]
                                               })
+                        deps_to_remove.append(dep)
+                    except:
+                        pass
                 else:
                     break
-
+        # Reversing the order of the asset_depends[] so that original order is maintained
+        asset_depends.reverse()
         # resources/ directory
         created_resources_directory = False
         if not omit_resources:

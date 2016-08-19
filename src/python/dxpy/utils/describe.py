@@ -305,8 +305,12 @@ def render_bundleddepends(thing):
             asset = dxpy.DXRecord(bundle_asset_record)
 
         if asset:
-            bundles.append(asset.describe().get("name") + " (" + asset.get_id() + ")")
-        else:
+            try:
+                bundles.append(asset.describe().get("name") + " (" + asset.get_id() + ")")
+            except:
+                asset = None
+
+        if not asset:
             bundles.append(item["name"] + " (" + item["id"]["$dnanexus_link"] + ")")
 
     return bundles
