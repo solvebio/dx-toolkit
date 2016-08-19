@@ -165,6 +165,7 @@ class TestDXAppWizardAndRunAppLocally(DXTestCase):
                          InstanceTypesCompleter.default_instance_type.Name)
         self.assertEqual(dxapp_json['runSpec']['distribution'], 'Ubuntu')
         self.assertEqual(dxapp_json['runSpec']['release'], '12.04')
+        self.assertEqual(dxapp_json['timeoutPolicy']['*']['hours'], 24)
 
     def test_dx_run_app_locally_interactively(self):
         appdir = create_app_dir()
