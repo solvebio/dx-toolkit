@@ -158,6 +158,10 @@ def create_app_dir_with_dxapp_json(dxapp_json, language):
         os.chdir(old_cwd)
 
 class TestDXAppWizardAndRunAppLocally(DXTestCase):
+    def test_invalid_arguments(self):
+        with self.assertRaises(testutil.DXCalledProcessError):
+            check_output(['dx-app-wizard','--template=par'])
+
     def test_dx_app_wizard(self):
         appdir = run_dx_app_wizard()
         dxapp_json = json.load(open(os.path.join(appdir, 'dxapp.json')))
