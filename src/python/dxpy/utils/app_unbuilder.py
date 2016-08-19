@@ -36,6 +36,7 @@ from .. import get_handler, download_dxfile
 from ..compat import open
 from ..exceptions import err_exit
 from .pretty_print import flatten_json_array
+from ..bindings.search import find_one_data_object
 
 def _recursive_cleanup(foo):
     """
