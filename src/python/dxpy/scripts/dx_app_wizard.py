@@ -290,6 +290,7 @@ array:boolean  array:int      boolean        hash           string''')
 
     print('')
     print(BOLD() + 'Timeout Policy' + ENDC())
+
     app_json.setdefault('timeoutPolicy', {})
 
     timeout, timeout_units = get_timeout(default=app_json['timeoutPolicy'].get('*'))
@@ -326,6 +327,9 @@ array:boolean  array:int      boolean        hash           string''')
         template_app_json = json.loads(file_text)
         for key in template_app_json['runSpec']:
             app_json['runSpec'][key] = template_app_json['runSpec'][key]
+
+    if (language == args.language) and (pattern == args.template):
+        print('All template options are supplied in the arguments.')
 
     ##########################
     # APP ACCESS PERMISSIONS #
