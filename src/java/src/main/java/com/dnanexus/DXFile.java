@@ -185,9 +185,15 @@ public class DXFile extends DXDataObject {
          * @param index part index that was provided to the file upload call
          *
          * @return size of the file part
+         *
+         * @throws IllegalArgumentException when the index supplied is not a file part
          */
         public int getChunkSize(int index) {
-            return parts.get(index).size;
+            try {
+                return parts.get(index).size;
+            } catch (NullPointerException e) {
+                throw new IllegalArgumentException("File part does not exist");
+            }
         }
 
         /**
@@ -195,7 +201,7 @@ public class DXFile extends DXDataObject {
          *
          * @return list of file part indices
          */
-        public ArrayList<Integer> getFilePartsList() {
+        public List<Integer> getFilePartsList() {
             ArrayList<Integer> fileParts = new ArrayList<Integer>(parts.keySet());
             Collections.sort(fileParts);
             return fileParts;
@@ -203,14 +209,19 @@ public class DXFile extends DXDataObject {
 
         /**
          * Returns the hexadecimal encoded value of MD5 message-digest of the specified file part.
-         * Throws a NullPointerException if the file part does not exist.
          *
          * @param index part index that was provided to the file upload call
          *
          * @return file part md5 digested as a string
+         *
+         * @throws IllegalArgumentException when the index supplied is not a file part
          */
         public String getMD5(int index) {
-            return parts.get(index).md5;
+            try {
+                return parts.get(index).md5;
+            } catch (NullPointerException e) {
+                throw new IllegalArgumentException("File part does not exist");
+            }
         }
 
         /**
@@ -244,7 +255,7 @@ public class DXFile extends DXDataObject {
         private List<Integer> fileParts;
         private Queue<InputStream> finishQueue = new LinkedList<InputStream>();
         private long nextByteFromApi = 0;
-        private int numBytesInQueue = 0;
+        private long numBytesNotYetChecksummed = 0;
         private Describe partsMetadata;
         private Queue<InputStream> rawFileBytesQueue = new LinkedList<InputStream>();
         private final long readEnd;
@@ -285,6 +296,17 @@ public class DXFile extends DXDataObject {
             }
         }
 
+        private long getNextChunkSize() {
+            if (chunkSize < maxDownloadChunkSize) {
+                if (request > numRequestsBetweenRamp) {
+                    request = 1;
+                    chunkSize = Math.min(chunkSize * ramp, maxDownloadChunkSize);
+                }
+            }
+            request++;
+            return chunkSize;
+        }
+
         @Override
         public int read() throws IOException {
             byte[] b = new byte[1];
@@ -311,7 +333,7 @@ public class DXFile extends DXDataObject {
             }
 
 
-            if (finishQueue.size() != 0 && finishQueue.peek().available() == 0) {
+            while (finishQueue.size() != 0 && finishQueue.peek().available() == 0) {
                 finishQueue.remove();
             }
 
@@ -322,47 +344,41 @@ public class DXFile extends DXDataObject {
                 }
 
                 int filePartSize = partsMetadata.getChunkSize(fileParts.get(filePartInd));
-                while (numBytesInQueue < filePartSize) {
+                while (numBytesNotYetChecksummed < filePartSize) {
                     // Ramp up download request size
-                    if (chunkSize < maxDownloadChunkSize) {
-                        if (request > numRequestsBetweenRamp) {
-                            request = 1;
-                            chunkSize = Math.min(chunkSize * ramp, maxDownloadChunkSize);
-                        }
-                    }
+                    long chunkSize = getNextChunkSize();
 
                     // API request to download bytes
-                    long endRange = Math.min(nextByteFromApi + chunkSize - 1, describe().getSize() - 1);
-                    byte[] bytesFromApiCall = this.downloader.get(apiResponse.url, nextByteFromApi, endRange);
-                    request++;
+                    long endRange = Math.min(nextByteFromApi + chunkSize, describe().getSize());
+                    byte[] bytesFromApiCall = this.downloader.get(apiResponse.url, nextByteFromApi, endRange - 1);
 
                     // Stream of bytes retrieved from the API call pre-checksum
                     rawFileBytesQueue.add(new ByteArrayInputStream(bytesFromApiCall));
-                    numBytesInQueue = numBytesInQueue + bytesFromApiCall.length;
+                    numBytesNotYetChecksummed = numBytesNotYetChecksummed + bytesFromApiCall.length;
 
                     // Update the next starting byte range
-                    nextByteFromApi = endRange + 1;
+                    nextByteFromApi = endRange;
                 }
-                assert (numBytesInQueue >= filePartSize);
+                assert (numBytesNotYetChecksummed >= filePartSize);
 
                 // Checksum verification
                 // Multiple file parts may need to be checksummed
-                while (numBytesInQueue >= filePartSize) {
+                while (numBytesNotYetChecksummed >= filePartSize) {
                     // File part's MD5 stored in file's meta data
                     String metadataChecksum = partsMetadata.getMD5(fileParts.get(filePartInd));
                     byte[] checksumBytes = new byte[filePartSize];
-                    int bytesLeft = filePartSize;
-                    while (bytesLeft > 0) {
-                        if (rawFileBytesQueue.peek().available() == 0) {
-                            rawFileBytesQueue.remove();
-                        }
+                    int checksumOff = 0;
+                    while (checksumOff < checksumBytes.length) {
                         InputStream rawFileStream = rawFileBytesQueue.peek();
-                        int checksumOff = filePartSize - bytesLeft;
-                        int bytesReadForChecksum = rawFileStream.read(checksumBytes, checksumOff,
-                                Math.min(rawFileStream.available(), bytesLeft));
-                        bytesLeft = bytesLeft - bytesReadForChecksum;
+                        int bytesReadForChecksum =
+                                rawFileStream.read(checksumBytes, checksumOff, filePartSize - checksumOff);
+                        if (bytesReadForChecksum == -1) {
+                            rawFileBytesQueue.remove();
+                        } else {
+                            checksumOff += bytesReadForChecksum;
+                        }
                     }
-                    numBytesInQueue = numBytesInQueue - filePartSize;
+                    numBytesNotYetChecksummed = numBytesNotYetChecksummed - filePartSize;
 
                     // Verify that MD5 of the downloaded data is the same as the MD5 in the metadata
                     try {
@@ -390,7 +406,8 @@ public class DXFile extends DXDataObject {
             // Skips bytes that occur before readStart
             InputStream checksumBuffer = finishQueue.peek();
             if (readStart > startByteChecksumBuffer) {
-                checksumBuffer.skip(readStart - startByteChecksumBuffer);
+                long skip = checksumBuffer.skip(readStart - startByteChecksumBuffer);
+                assert (skip == readStart - startByteChecksumBuffer);
                 startByteChecksumBuffer = readStart;
             }
             long endByteChecksumBuffer = startByteChecksumBuffer + checksumBuffer.available();
@@ -401,11 +418,10 @@ public class DXFile extends DXDataObject {
                     return -1;
                 }
                 bytesToRead = Math.min(numBytes, checksumBuffer.available() - (int) (endByteChecksumBuffer - readEnd));
-                bytesRead = checksumBuffer.read(b, off, bytesToRead);
             } else {
                 bytesToRead = Math.min(numBytes, finishQueue.peek().available());
-                bytesRead = checksumBuffer.read(b, off, bytesToRead);
             }
+            bytesRead = checksumBuffer.read(b, off, bytesToRead);
             assert (bytesToRead == bytesRead);
             startByteChecksumBuffer = startByteChecksumBuffer + bytesRead;
 
@@ -420,9 +436,7 @@ public class DXFile extends DXDataObject {
         @Override
         public void close() throws IOException {
             // Flush out remaining bytes to upload
-            if (unwrittenBytes.size() > 0 || index == 1) {
-                partUploadRequest(unwrittenBytes.toByteArray(), index);
-            }
+            partUploadRequest(unwrittenBytes.toByteArray(), index);
             unwrittenBytes = new ByteArrayOutputStream();
         }
 

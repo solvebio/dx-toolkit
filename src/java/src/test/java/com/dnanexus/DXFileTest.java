@@ -361,6 +361,23 @@ public class DXFileTest {
     }
 
     @Test
+    public void testUploadDownloadWithTrailingEmptyPart() throws IOException {
+        // Upload bytes so that there are no extra bytes to flush out
+        // This is done by making the uploadChunkSize a multiple of the uploadBytes size
+        byte[] uploadBytes = new byte[5 * 1024 * 1024];
+        new Random().nextBytes(uploadBytes);
+
+        DXFile f = DXFile.newFile().setProject(testProject).build();
+        f = DXFile.newFile().setProject(testProject).build();
+        f.uploadChunkSize = 5 * 1024 * 1024;
+        f.upload(uploadBytes);
+        f.closeAndWait();
+        byte[] downloadBytes = f.downloadBytes();
+
+        Assert.assertArrayEquals(uploadBytes, downloadBytes);
+    }
+
+    @Test
     public void testUploadBytesDownloadBytes() throws IOException {
         // With string data
         String uploadData = "Test";
