@@ -98,9 +98,10 @@ class_method_template = '''
      *             If an error occurs while making the HTTP request or obtaining
      *             the response (includes HTTP protocol errors).
      */
-    public static <T> T {method_name}(Object inputObject, Class<T> outputClass) {{{nonce_code}
+    public static <T> T {method_name}(Object inputObject, Class<T> outputClass) {{
+        {input_code}
         return DXJSON.safeTreeToValue(
-                new DXHTTPRequest().request("{route}", mapper.valueToTree({inputObject}), {retry_strategy}),
+                new DXHTTPRequest().request("{route}", input, {retry_strategy}),
                 outputClass);
     }}
     /**
@@ -119,9 +120,10 @@ class_method_template = '''
      *             If an error occurs while making the HTTP request or obtaining
      *             the response (includes HTTP protocol errors).
      */
-    public static <T> T {method_name}(Object inputObject, Class<T> outputClass, DXEnvironment env) {{{nonce_code}
+    public static <T> T {method_name}(Object inputObject, Class<T> outputClass, DXEnvironment env) {{
+        {input_code}
         return DXJSON.safeTreeToValue(
-                new DXHTTPRequest(env).request("{route}", mapper.valueToTree({inputObject}), {retry_strategy}),
+                new DXHTTPRequest(env).request("{route}", input, {retry_strategy}),
                 outputClass);
     }}
 
@@ -240,10 +242,11 @@ object_method_template = '''
      *             If an error occurs while making the HTTP request or obtaining
      *             the response (includes HTTP protocol errors).
      */
-    public static <T> T {method_name}(String objectId, Object inputObject, Class<T> outputClass) {{{nonce_code}
+    public static <T> T {method_name}(String objectId, Object inputObject, Class<T> outputClass) {{
+        {input_code}
         return DXJSON.safeTreeToValue(
                 new DXHTTPRequest().request("/" + objectId + "/" + "{method_route}",
-                        mapper.valueToTree({inputObject}), {retry_strategy}), outputClass);
+                        input, {retry_strategy}), outputClass);
     }}
     /**
      * Invokes the {method_name} method with an empty input using the given environment, deserializing to an object of the specified class.{wiki_link}
@@ -281,10 +284,11 @@ object_method_template = '''
      *             If an error occurs while making the HTTP request or obtaining
      *             the response (includes HTTP protocol errors).
      */
-    public static <T> T {method_name}(String objectId, Object inputObject, Class<T> outputClass, DXEnvironment env) {{{nonce_code}
+    public static <T> T {method_name}(String objectId, Object inputObject, Class<T> outputClass, DXEnvironment env) {{
+        {input_code}
         return DXJSON.safeTreeToValue(
             new DXHTTPRequest(env).request("/" + objectId + "/" + "{method_route}",
-                    mapper.valueToTree({inputObject}), {retry_strategy}), outputClass);
+                    input, {retry_strategy}), outputClass);
     }}
 
     /**
@@ -382,14 +386,11 @@ object_method_template = '''
 app_object_method_template = object_method_template
 
 
-def make_nonce_code(accept_nonce):
-    nonce_code = '''
-        Object inputObjectCp = Nonce.updateNonce(inputObject);'''
-    return (nonce_code if accept_nonce else "")
+def make_input_code(accept_nonce):
+    if accept_nonce:
+        return "JsonNode input = Nonce.updateNonce(mapper.valueToTree(inputObject));"
+    return "JsonNode input = mapper.valueToTree(inputObject);"
 
-
-def make_input_params(accept_nonce):
-    return ("inputObjectCp" if accept_nonce else "inputObject")
 
 print preamble
 
@@ -408,21 +409,18 @@ for method in json.loads(sys.stdin.read()):
                                                     method_route=method_route,
                                                     wiki_link=wiki_link,
                                                     retry_strategy=retry_param,
-                                                    nonce_code=make_nonce_code(accept_nonce),
-                                                    inputObject=make_input_params(accept_nonce))
+                                                    input_code=make_input_code(accept_nonce))
         else:
             print object_method_template.format(method_name=method_name,
                                                 method_route=method_route,
                                                 wiki_link=wiki_link,
                                                 retry_strategy=retry_param,
-                                                nonce_code=make_nonce_code(accept_nonce),
-                                                inputObject=make_input_params(accept_nonce))
+                                                input_code=make_input_code(accept_nonce))
     else:
         print class_method_template.format(method_name=method_name,
                                            route=route,
                                            wiki_link=wiki_link,
                                            retry_strategy=retry_param,
-                                           nonce_code=make_nonce_code(accept_nonce),
-                                           inputObject=make_input_params(accept_nonce))
+                                           input_code=make_input_code(accept_nonce))
 
 print postscript

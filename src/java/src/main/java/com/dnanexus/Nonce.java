@@ -1,4 +1,4 @@
-// Copyright (C) 2013-2016 DNAnexus, Inc.
+// Copyright (C) 2016 DNAnexus, Inc.
 //
 // This file is part of dx-toolkit (DNAnexus platform client libraries).
 //
@@ -17,7 +17,6 @@
 package com.dnanexus;
 
 import java.security.SecureRandom;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -25,11 +24,15 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 /**
  * Utility class for generating nonces.
  */
-public class Nonce {
+class Nonce {
 
-    public static final SecureRandom random = new SecureRandom();
+    // Prevent instantiation of utility class
+    private Nonce() {
+    }
+
+    private static final SecureRandom random = new SecureRandom();
     final protected static char[] hexArray = "0123456789abcdef".toCharArray();
-    public static int counter = 0;
+    private static int counter = 0;
 
     private static ObjectMapper mapper = new ObjectMapper();
 
@@ -46,6 +49,13 @@ public class Nonce {
         return new String(hexChars);
     }
 
+    /**
+     * Generates a unique sequence of bytes and concatenates their hexadecimal
+     * representation with the current time and a local counter to make a unique nonce.
+     * Returns the unique nonce as a string.
+     *
+     * @return String
+     */
     public static String nonce() {
         byte bytes[] = new byte[32];
         random.nextBytes(bytes);
@@ -54,9 +64,15 @@ public class Nonce {
         return nonce;
     }
 
-    public static Object updateNonce(Object input) {
-        JsonNode json = mapper.valueToTree(input);
-        ObjectNode inputJson = DXJSON.safeTreeToValue(json, ObjectNode.class);
+    /**
+     * Returns a copy of an input object with an additional nonce field.
+     *
+     * @param input a JsonNode object
+     *
+     * @return a Copy of the given JsonNode containing a nonce.
+     */
+    public static JsonNode updateNonce(JsonNode input) {
+        ObjectNode inputJson = DXJSON.safeTreeToValue(input, ObjectNode.class);
         if (!inputJson.has("nonce")) {
             inputJson.put("nonce", nonce());
         }
