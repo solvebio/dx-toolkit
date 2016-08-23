@@ -20,7 +20,7 @@ import java.security.SecureRandom;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-
+import com.google.common.annotations.VisibleForTesting;
 /**
  * Utility class for generating nonces.
  */
@@ -31,7 +31,7 @@ class Nonce {
     }
 
     private static final SecureRandom random = new SecureRandom();
-    final protected static char[] hexArray = "0123456789abcdef".toCharArray();
+    final private static char[] hexArray = "0123456789abcdef".toCharArray();
     private static int counter = 0;
 
     private static ObjectMapper mapper = new ObjectMapper();
@@ -56,7 +56,8 @@ class Nonce {
      *
      * @return String
      */
-    public static String nonce() {
+    @VisibleForTesting
+    static String nonce() {
         byte bytes[] = new byte[32];
         random.nextBytes(bytes);
         String nonce = bytesToHex(bytes);
@@ -72,7 +73,7 @@ class Nonce {
      * @return a Copy of the given JsonNode containing a nonce.
      */
     public static JsonNode updateNonce(JsonNode input) {
-        ObjectNode inputJson = DXJSON.safeTreeToValue(input, ObjectNode.class);
+        ObjectNode inputJson = DXJSON.safeTreeToValue(input.deepCopy(), ObjectNode.class);
         if (!inputJson.has("nonce")) {
             inputJson.put("nonce", nonce());
         }

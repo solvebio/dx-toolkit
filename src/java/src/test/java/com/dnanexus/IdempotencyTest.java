@@ -51,7 +51,7 @@ public class IdempotencyTest {
 
     @Test
     public void testIdempotentAppCreation() {
-        if (!TestEnvironment.canRunTest(ConfigOption.CREATE_APPS)) {
+        if (!TestEnvironment.canRunTest(ConfigOption.ISOLATED_ENV)) {
             System.err.println("Skipping test that would create apps");
             return;
         }
@@ -202,7 +202,7 @@ public class IdempotencyTest {
 
     @Test
     public void testIdempotentOrgCreation() {
-        if (!TestEnvironment.canRunTest(ConfigOption.CREATE_APPS)) {
+        if (!TestEnvironment.canRunTest(ConfigOption.ISOLATED_ENV)) {
             System.err.println("Skipping test that would create an org");
             return;
         }
@@ -255,7 +255,7 @@ public class IdempotencyTest {
         JsonNode result2 = DXAPI.workflowNew(input, JsonNode.class);
         Assert.assertEquals(result1, result2);
 
-        ObjectNode inputNode = DXJSON.safeTreeToValue(input, ObjectNode.class);
+        ObjectNode inputNode = DXJSON.safeTreeToValue(input.deepCopy(), ObjectNode.class);
         inputNode.put("name", "diff_name");
         try {
             DXAPI.workflowNew(inputNode, JsonNode.class);
@@ -270,7 +270,9 @@ public class IdempotencyTest {
     @Test
     public void testInputUpdater() {
         JsonNode inputParams = DXJSON.getObjectBuilder().put("p1", "v1").put("p2", "v2").build();
+        JsonNode inputParamsCp = inputParams.deepCopy();
         JsonNode updatedInput = mapper.valueToTree(Nonce.updateNonce(inputParams));
+        Assert.assertEquals(inputParams, inputParamsCp);
         Assert.assertTrue(updatedInput.has("nonce"));
         JsonNode updatedInput2 = mapper.valueToTree(Nonce.updateNonce(updatedInput));
         Assert.assertEquals(updatedInput, updatedInput2);

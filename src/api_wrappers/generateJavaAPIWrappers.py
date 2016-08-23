@@ -401,7 +401,7 @@ for method in json.loads(sys.stdin.read()):
     if opts.get('wikiLink', None):
         wiki_link = '\n     *\n     * <p>For more information about this method, see the <a href="%s">API specification</a>.' % (opts['wikiLink'],)
     retry_param = "RetryStrategy.SAFE_TO_RETRY" if opts['retryable'] else "RetryStrategy.UNSAFE_TO_RETRY"
-    accept_nonce = True if 'acceptNonce' in opts else False
+    accept_nonce = 'acceptNonce' in opts
     if (opts['objectMethod']):
         root, oid_route, method_route = route.split("/")
         if oid_route == 'app-xxxx':
