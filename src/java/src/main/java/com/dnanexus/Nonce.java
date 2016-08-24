@@ -73,7 +73,7 @@ class Nonce {
      * @return a Copy of the given JsonNode containing a nonce.
      */
     public static JsonNode updateNonce(JsonNode input) {
-        ObjectNode inputJson = DXJSON.safeTreeToValue(input.deepCopy(), ObjectNode.class);
+        ObjectNode inputJson = (ObjectNode)(input.deepCopy());
         if (!inputJson.has("nonce")) {
             inputJson.put("nonce", nonce());
         }

@@ -59,15 +59,15 @@ public class IdempotencyTest {
         JsonNode inputSpec = DXJSON.getArrayBuilder()
                 .add(DXJSON.getObjectBuilder().put("name", "s").put("class", "string").build()).build();
 
-        JsonNode input = DXJSON
-                .getObjectBuilder()
-                .put("name", "test_applet")
-                .put("project", testProject.getId())
-                .put("inputSpec", inputSpec)
-                .put("runSpec",
-                        DXJSON.getObjectBuilder().put("interpreter", "bash")
-                                .put("code", "#!/bin/bash\n\necho hello world!").build())
-                .put("outputSpec", DXJSON.getArrayBuilder().build()).put("dxapi", "1.0.0").build();
+        ObjectNode input = DXJSON
+                  .getObjectBuilder()
+                  .put("name", "test_applet")
+                  .put("project", testProject.getId())
+                  .put("inputSpec", inputSpec)
+                  .put("runSpec",
+                          DXJSON.getObjectBuilder().put("interpreter", "bash")
+                                  .put("code", "#!/bin/bash\n\necho hello world!").build())
+                  .put("outputSpec", DXJSON.getArrayBuilder().build()).put("dxapi", "1.0.0").build();
 
         JsonNode applet = DXAPI.appletNew(input, JsonNode.class);
         String appletId = applet.get("id").asText();
@@ -80,7 +80,7 @@ public class IdempotencyTest {
         JsonNode result2 = DXAPI.appNew(input, JsonNode.class);
         Assert.assertEquals(result1, result2);
 
-        ObjectNode inputNode = DXJSON.safeTreeToValue(input, ObjectNode.class);
+        ObjectNode inputNode = input.deepCopy();
         inputNode.put("name", "diff_name");
         try {
             DXAPI.appNew(inputNode, JsonNode.class);
@@ -101,7 +101,7 @@ public class IdempotencyTest {
 
         Assert.assertEquals(result1, result2);
 
-        inputNode = DXJSON.safeTreeToValue(appRunInput, ObjectNode.class);
+        inputNode = appRunInput.deepCopy();
         inputNode.put("input", DXJSON.getObjectBuilder().put("s", "different param").build());
         try {
             DXAPI.appRun(appId, inputNode, JsonNode.class);
@@ -115,21 +115,21 @@ public class IdempotencyTest {
 
     @Test
     public void testIdempotentAppletCreation() {
-        JsonNode input = DXJSON
-                .getObjectBuilder()
-                .put("name", "test_applet")
-                .put("project", testProject.getId())
-                .put("inputSpec", DXJSON.getArrayBuilder().build())
-                .put("runSpec",
-                        DXJSON.getObjectBuilder().put("interpreter", "bash")
-                                .put("code", "#!/bin/bash\n\necho hello world!").build()).put("dxapi", "1.0.0")
-                .put("nonce", Nonce.nonce()).build();
+        ObjectNode input = DXJSON
+                  .getObjectBuilder()
+                  .put("name", "test_applet")
+                  .put("project", testProject.getId())
+                  .put("inputSpec", DXJSON.getArrayBuilder().build())
+                  .put("runSpec",
+                          DXJSON.getObjectBuilder().put("interpreter", "bash")
+                                  .put("code", "#!/bin/bash\n\necho hello world!").build()).put("dxapi", "1.0.0")
+                  .put("nonce", Nonce.nonce()).build();
 
         JsonNode result1 = DXAPI.appletNew(input, JsonNode.class);
         JsonNode result2 = DXAPI.appletNew(input, JsonNode.class);
         Assert.assertEquals(result1, result2);
 
-        ObjectNode inputNode = DXJSON.safeTreeToValue(input, ObjectNode.class);
+        ObjectNode inputNode = input.deepCopy();
         inputNode.put("name", "diff_name");
         try {
             DXAPI.appletNew(inputNode, JsonNode.class);
@@ -158,8 +158,8 @@ public class IdempotencyTest {
 
         JsonNode applet = DXAPI.appletNew(input, JsonNode.class);
 
-        JsonNode appletRunInput = DXJSON.getObjectBuilder().put("project", testProject.getId())
-                .put("input", DXJSON.getObjectBuilder().put("s", "param").build()).put("nonce", Nonce.nonce()).build();
+        ObjectNode appletRunInput = DXJSON.getObjectBuilder().put("project", testProject.getId())
+                  .put("input", DXJSON.getObjectBuilder().put("s", "param").build()).put("nonce", Nonce.nonce()).build();
 
         String appletId = applet.get("id").asText();
 
@@ -168,7 +168,7 @@ public class IdempotencyTest {
 
         Assert.assertEquals(result1, result2);
 
-        ObjectNode inputNode = DXJSON.safeTreeToValue(appletRunInput, ObjectNode.class);
+        ObjectNode inputNode = appletRunInput.deepCopy();
         inputNode.put("input", DXJSON.getObjectBuilder().put("s", "different param").build());
         try {
             DXAPI.appletRun(appletId, inputNode, JsonNode.class);
@@ -182,13 +182,13 @@ public class IdempotencyTest {
 
     @Test
     public void testIdempotentFileCreation() {
-        JsonNode input = DXJSON.getObjectBuilder().put("name", "test_file").put("project", testProject.getId())
-                .put("nonce", Nonce.nonce()).build();
+        ObjectNode input = DXJSON.getObjectBuilder().put("name", "test_file").put("project", testProject.getId())
+                  .put("nonce", Nonce.nonce()).build();
         JsonNode result1 = DXAPI.fileNew(input, JsonNode.class);
         JsonNode result2 = DXAPI.fileNew(input, JsonNode.class);
         Assert.assertEquals(result1, result2);
 
-        ObjectNode inputNode = DXJSON.safeTreeToValue(input, ObjectNode.class);
+        ObjectNode inputNode = input.deepCopy();
         inputNode.put("name", "diff_name");
         try {
             DXAPI.fileNew(inputNode, JsonNode.class);
@@ -207,14 +207,14 @@ public class IdempotencyTest {
             return;
         }
 
-        JsonNode input = DXJSON.getObjectBuilder().put("name", "test_org").put("handle", "org_handle")
-                .put("nonce", Nonce.nonce()).build();
+        ObjectNode input = DXJSON.getObjectBuilder().put("name", "test_org").put("handle", "org_handle")
+                  .put("nonce", Nonce.nonce()).build();
 
         JsonNode result1 = DXAPI.orgNew(input, JsonNode.class);
         JsonNode result2 = DXAPI.orgNew(input, JsonNode.class);
         Assert.assertEquals(result1, result2);
 
-        ObjectNode inputNode = DXJSON.safeTreeToValue(input, ObjectNode.class);
+        ObjectNode inputNode = input.deepCopy();
         inputNode.put("name", "diff_name");
         try {
             DXAPI.orgNew(inputNode, JsonNode.class);
@@ -228,13 +228,13 @@ public class IdempotencyTest {
 
     @Test
     public void testIdempotentRecordCreation() {
-        JsonNode input = DXJSON.getObjectBuilder().put("name", "test_record").put("project", testProject.getId())
+        ObjectNode input = DXJSON.getObjectBuilder().put("name", "test_record").put("project", testProject.getId())
                 .put("nonce", Nonce.nonce()).build();
         JsonNode result1 = DXAPI.recordNew(input, JsonNode.class);
         JsonNode result2 = DXAPI.recordNew(input, JsonNode.class);
         Assert.assertEquals(result1, result2);
 
-        ObjectNode inputNode = DXJSON.safeTreeToValue(input, ObjectNode.class);
+        ObjectNode inputNode = input.deepCopy();
         inputNode.put("name", "diff_record_name");
         try {
             DXAPI.recordNew(inputNode, JsonNode.class);
@@ -248,14 +248,14 @@ public class IdempotencyTest {
 
     @Test
     public void testIdempotentWorkflowCreation() {
-        JsonNode input = DXJSON.getObjectBuilder().put("name", "test_workflow").put("project", testProject.getId())
+        ObjectNode input = DXJSON.getObjectBuilder().put("name", "test_workflow").put("project", testProject.getId())
                 .put("nonce", Nonce.nonce()).build();
 
         JsonNode result1 = DXAPI.workflowNew(input, JsonNode.class);
         JsonNode result2 = DXAPI.workflowNew(input, JsonNode.class);
         Assert.assertEquals(result1, result2);
 
-        ObjectNode inputNode = DXJSON.safeTreeToValue(input.deepCopy(), ObjectNode.class);
+        ObjectNode inputNode = input.deepCopy();
         inputNode.put("name", "diff_name");
         try {
             DXAPI.workflowNew(inputNode, JsonNode.class);
