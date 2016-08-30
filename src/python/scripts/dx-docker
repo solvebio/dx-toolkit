@@ -18,16 +18,10 @@ def shell(cmd, verbose=True):
     def poll_stream(args):
         subproc, istream, ostream, lock = args
 
-        def output_line():
-            out = istream.readline()
-            if out != '':
-                lock.acquire()
-                ostream.write("{output}\n".format(output=out.rstrip()))
-                lock.release()
-
-        while subproc.poll() is None:
-            output_line()
-        output_line()
+        for out in istream:
+            lock.acquire()
+            ostream.write("{output}\n".format(output=out.rstrip()))
+            lock.release()
 
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     if verbose:
