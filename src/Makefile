@@ -63,7 +63,7 @@ else
 	MAYBE_SUDO='sudo'
 endif
 
-all: api_wrappers cpp src_libs python dx-contigset-to-fasta dx-verify-file dx-wig-to-wiggle jq
+all: api_wrappers cpp src_libs python dx-contigset-to-fasta dx-verify-file dx-wig-to-wiggle jq dx-docker
 
 # Don't try to initialize the submodule in source distributions, it should
 # already be there and ready to build.
@@ -149,7 +149,7 @@ pynsist_installer: toolkit_version $(DNANEXUS_HOME)/bin/dx dx-verify-file jq ua
 
 	# Copy wheel file into place without changing its filename
 	export DXPY_WHEEL_FILENAME=$$(basename $(DNANEXUS_HOME)/src/python/dist/dxpy-*.whl) ; \
-	    cp "$(DNANEXUS_HOME)"/src/python/dist/$${DXPY_WHEEL_FILENAME} "$(DNANEXUS_HOME)"/build/pynsist_files/ 
+	    cp "$(DNANEXUS_HOME)"/src/python/dist/$${DXPY_WHEEL_FILENAME} "$(DNANEXUS_HOME)"/build/pynsist_files/
 
 	# Insert the wheel filename into installer.cfg
 	export DXPY_WHEEL_FILENAME=$$(basename $(DNANEXUS_HOME)/src/python/dist/dxpy-*.whl) ; \
@@ -234,6 +234,10 @@ dx-wig-to-wiggle: api_wrappers
 
 ua: toolkit_version ua_deps
 	$(MAKE) -C ua install dist DESTDIR=$(DNANEXUS_HOME) PREFIX=/
+
+dx-docker:
+	cd $(DNANEXUS_HOME)/bin && curl -k -sL https://github.com/appc/docker2aci/releases/download/v0.12.3/docker2aci-v0.12.3.tar.gz | tar --strip-components=1 -zxf -
+	mkdir -p $(DNANEXUS_HOME)/proot-build && cd $(DNANEXUS_HOME)/proot-build && curl -k -sL https://github.com/proot-me/PRoot/archive/v4.0.0.tar.gz | tar --strip-components=1 -zxf - && cd src && make && mv proot $(DNANEXUS_HOME)/bin && rm -r $(DNANEXUS_HOME)/proot-build
 
 # Tests
 # =====
