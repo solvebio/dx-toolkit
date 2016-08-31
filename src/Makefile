@@ -235,9 +235,13 @@ dx-wig-to-wiggle: api_wrappers
 ua: toolkit_version ua_deps
 	$(MAKE) -C ua install dist DESTDIR=$(DNANEXUS_HOME) PREFIX=/
 
-dx-docker:
-	cd $(DNANEXUS_HOME)/bin && curl -k -sL https://github.com/appc/docker2aci/releases/download/v0.12.3/docker2aci-v0.12.3.tar.gz | tar --strip-components=1 -zxf -
+dx-docker: bin/proot bin/docker2aci
+
+bin/proot:
 	mkdir -p $(DNANEXUS_HOME)/proot-build && cd $(DNANEXUS_HOME)/proot-build && curl -k -sL https://github.com/proot-me/PRoot/archive/v4.0.0.tar.gz | tar --strip-components=1 -zxf - && cd src && make && mv proot $(DNANEXUS_HOME)/bin && rm -r $(DNANEXUS_HOME)/proot-build
+
+bin/docker2aci:
+	cd $(DNANEXUS_HOME)/bin && curl -k -sL https://github.com/appc/docker2aci/releases/download/v0.12.3/docker2aci-v0.12.3.tar.gz | tar --strip-components=1 -zxf -
 
 # Tests
 # =====
@@ -541,6 +545,7 @@ clean:
 	$(MAKE) -C dx-verify-file clean
 	$(MAKE) -C ua clean
 	-find ../bin -type f \( -name jq -or -name dx -or -name 'dx-*' \) -not -name 'dx-unpack*' -delete
+	-rm -f ../bin/docker2aci ../bin/proot
 	-rm -rf python/{build,*.{egg,egg-info}}
 	-rm -rf java/target
 	-rm -rf ../lib
