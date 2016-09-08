@@ -525,13 +525,13 @@ ifeq ($(CENTOS_MAJOR_VERSION), 5)
 	${MAYBE_SUDO} yum install -y cmake gcc44-c++ zlib-devel bzip2-devel curl-devel
 else ifeq ($(FEDORA_MAJOR_VERSION), 20)
 	${MAYBE_SUDO} yum groupinstall -y "Development tools"
-	${MAYBE_SUDO} yum install -y gcc gcc-c++ automake bison flex python python-pip python-virtualenv boost-devel boost-static cmake openssl-devel libcurl-devel bzip2-devel
+	${MAYBE_SUDO} yum install -y gcc gcc-c++ automake bison flex python python-pip python-virtualenv boost-devel boost-static cmake openssl-devel libcurl-devel bzip2-devel curl
 else ifeq ($(UBUNTU_VERSION), 12.04)
 	${MAYBE_SUDO} apt-get install make python-setuptools python-pip python-virtualenv python-dev \
-		g++ cmake libcurl4-openssl-dev zlib1g-dev libbz2-dev flex bison autoconf
+		g++ cmake libcurl4-openssl-dev zlib1g-dev libbz2-dev flex bison autoconf curl
 else ifeq ($(UBUNTU_VERSION), 14.04)
 	${MAYBE_SUDO} apt-get install make python-setuptools python-pip python-virtualenv python-dev \
-		g++ cmake libcurl4-openssl-dev zlib1g-dev libbz2-dev flex bison autoconf
+		g++ cmake libcurl4-openssl-dev zlib1g-dev libbz2-dev flex bison autoconf curl
 endif
 
 # Clean
