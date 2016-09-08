@@ -238,7 +238,7 @@ ua: toolkit_version ua_deps
 dx-docker: bin/proot bin/docker2aci
 
 bin/proot:
-	curl -k -sL https://github.com/proot-me/proot-static-build/raw/master/static/proot-x86_64 > $(DNANEXUS_HOME)/bin/proot && chmod 777 $(DNANEXUS_HOME)/bin/proot
+	curl -k -sL https://github.com/proot-me/proot-static-build/raw/5bcf1a3341beeefde7305ce196031de837ca173c/static/proot-x86_64 > $(DNANEXUS_HOME)/bin/proot && chmod 777 $(DNANEXUS_HOME)/bin/proot
 
 bin/docker2aci:
 	cd $(DNANEXUS_HOME)/bin && curl -k -sL https://github.com/appc/docker2aci/releases/download/v0.12.3/docker2aci-v0.12.3.tar.gz | tar --strip-components=1 -zxf -
