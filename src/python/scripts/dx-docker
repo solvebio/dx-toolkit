@@ -1,5 +1,11 @@
 #!/home/geet/dx-toolkit/build/py_env/bin/python
 
+# Note:
+#
+# Certain Docker images build with newer versions of Docker may not work with the default ENTRYPOINT.
+# We are tracking this issue with the docker2aci team here: https://github.com/appc/docker2aci/issues/198
+# In the meanwhile, please provide your ENTRYPOINT command explicitly in your `dx-docker run` command.
+
 """dx-docker Run Docker images in your DNAnexus app."""
 
 import argparse
@@ -15,7 +21,6 @@ import glob
 CACHE_DIR = '/dx-docker-cache'
 
 def shell(cmd, ignore_error=False):
-    #print cmd
     try:
         subprocess.check_call(cmd)
     except subprocess.CalledProcessError as e:
@@ -23,6 +28,18 @@ def shell(cmd, ignore_error=False):
             return
         else:
             sys.exit(e.returncode)
+
+def shell_suppress(cmd, ignore_error=False):
+    out = ""
+    try:
+        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        print e.output
+        if ignore_error:
+            pass
+        else:
+            raise
+    return out
 
 parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers()
@@ -35,26 +52,25 @@ def get_aci_name(imagename):
     matching_files = glob.glob("{cachedir}/*{image}*.aci".format(cachedir=CACHE_DIR, image=imagename))
     if len(matching_files) == 0:
         return None
-    elif len(matching_files) == 1: 
+    elif len(matching_files) == 1:
         return matching_files[0]
     else:
         raise Exception("dx-docker cache error: Exactly one aci archive should correspond to an image name: {} found archives".format(len(matching_files)))
-
 
 def extract_aci(image):
     imagename = image_name_from_path(image)
     aciname = get_aci_name(imagename)
     tmpdir = tempfile.mkdtemp()
-    shell(["tar", "-xzf", aciname, "--exclude", "rootfs/dev/*", "-C", tmpdir], ignore_error=True)
+    shell_suppress(["tar", "-xzf", aciname, "--exclude", "rootfs/dev/*", "-C", tmpdir], ignore_error=True)
     return tmpdir
 
 parser_pull = subparsers.add_parser('pull', help="Pulls a docker image for use in DNAnexus")
 parser_pull.add_argument("image", help="image name")
 def pull(args):
     if not os.path.isdir(CACHE_DIR):
-        shell(["mkdir", CACHE_DIR])
+        shell_suppress(["mkdir", CACHE_DIR])
     os.chdir(CACHE_DIR)
-    shell(["docker2aci", "docker://{image}".format(image=args.image)])
+    shell_suppress(["docker2aci", "docker://{image}".format(image=args.image)])
 parser_pull.set_defaults(func=pull)
 
 parser_run = subparsers.add_parser('run', help="Runs a docker image in a container")
@@ -93,11 +109,7 @@ def run(args):
     elif 'cmd' in annotations and not args.entrypoint:
          cmd = json.loads(annotations['cmd'])
 
-    if not ('cmd' in annotations and 'entrypoint' in annotations):
-        container_cmd = imagemeta['app']['exec'] + cmd
-    else:
-        container_cmd = entrypoint + cmd
-        
+    container_cmd = entrypoint + cmd
 
     workdir = args.workdir
     if 'workingDirectory' in imagemeta['app']:
@@ -109,7 +121,7 @@ def run(args):
 
     proot_cmd =  ["proot", "-R", "{tmpdir}/rootfs".format(tmpdir=tmpdir)] + volume + ["-w", workdir, "/usr/bin/env", "-i"] + env + ["/bin/sh", "-c", " ".join(container_cmd)]
     shell(proot_cmd)
-    shell(["rm", "-r", tmpdir])
+    shell_suppress(["rm", "-r", tmpdir])
 parser_run.set_defaults(func=run)
 
 if __name__ == "__main__":
