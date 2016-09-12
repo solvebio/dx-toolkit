@@ -46,6 +46,7 @@
 #include "mime.h"
 #include "round_robin_dns.h"
 #include "common_utils.h"
+#include "ua_test.h"
 
 // http://www.boost.org/doc/libs/1_48_0/libs/config/doc/html/boost_config/boost_macro_reference.html
 #if ((BOOST_VERSION / 100000) < 1 || ((BOOST_VERSION/100000) == 1 && ((BOOST_VERSION / 100) % 1000) < 48))
@@ -660,30 +661,6 @@ void setUserAgentString() {
   dx::config::USER_AGENT_STRING() = userAgentString;
 }
 
-// This function should be called before opt.setApiserverDxConfig() is called,
-// since opt::setApiserverDxConfig() changes the value of dx::config::*, based on command line args
-void printEnvironmentInfo() {
-  using namespace dx::config;
-
-  cout << "Upload Agent v" << UAVERSION << ", environment info:" << endl
-       << "  API server protocol: " << APISERVER_PROTOCOL() << endl
-       << "  API server host: " << APISERVER_HOST() << endl
-       << "  API server port: " << APISERVER_PORT() << endl;
-
-  if (SECURITY_CONTEXT().size() != 0)
-    cout << "  Auth token: " << SECURITY_CONTEXT()["auth_token"].get<string>() << endl;
-  else
-    cout << "  Auth token: " << endl;
-
-  string projID = CURRENT_PROJECT();
-  try {
-    string projName = getProjectName(projID);
-    cout << "  Project: " << projName << " (" << projID << ")" << endl;
-  } catch (DXAPIError &e) {
-    cout << "  Project: " << projID << endl;
-  }
-}
-
 // There is currently the possibility of a race condition if a chunk
 // upload timed-out.  It's possible that a second upload succeeds,
 // has the chunk marked as "complete" and then the first request makes
@@ -818,23 +795,26 @@ int main(int argc, char * argv[]) {
   if (opt.env()) {
     opt.setApiserverDxConfig();  // needed for 'ua --env' to report project name
     printEnvironmentInfo();
+    currentProject();
     return 0;
   }
 
   if (opt.version()) {
-    cout << "Upload Agent Version: " << UAVERSION;
-#if OLD_KERNEL_SUPPORT
-    cout << " (old-kernel-support)";
-#endif
-    cout << endl
-         << "git version: " << DXTOOLKIT_GITVERSION << endl
-         << "libboost version: " << (BOOST_VERSION / 100000) << "." << ((BOOST_VERSION / 100) % 1000) << "." << (BOOST_VERSION % 100) << endl
-         << "libcurl version: " << LIBCURL_VERSION_MAJOR << "." << LIBCURL_VERSION_MINOR << "." << LIBCURL_VERSION_PATCH << endl;
+    version();
+    return 0;
+  } else if (opt.test()) {
+    opt.setApiserverDxConfig();
+    runTests();
+    DXLOG(logUSERINFO) << "What to do next: ";
+    DXLOG(logUSERINFO) << "  Run the Upload Agent with the -v flag to get verbose output";
+    DXLOG(logUSERINFO) << "  Set DX_LIBCURL_VERBOSE environment to 1 and repeat the upload attempt to get libcurl debug logs";
+
     return 0;
   } else if (opt.help() || opt.files.empty()) {
     opt.printHelp(argv[0]);
     return (opt.help()) ? 0 : 1;
   }
+
 
   setUserAgentString(); // also sets dx::config::USER_AGENT_STRING()
   DXLOG(logINFO) << "DNAnexus Upload Agent " << UAVERSION << " (git version: " << DXTOOLKIT_GITVERSION << ")";
