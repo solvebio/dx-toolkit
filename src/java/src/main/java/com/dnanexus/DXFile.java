@@ -166,7 +166,7 @@ public class DXFile extends DXDataObject {
             @JsonProperty
             private String md5;
             @JsonProperty
-            private Long size;
+            private long size;
         }
 
         @JsonProperty
@@ -174,7 +174,7 @@ public class DXFile extends DXDataObject {
         @JsonProperty
         private Map<Integer, PartValue> parts;
         @JsonProperty
-        private Long size;
+        private long size;
 
         private Describe() {
             super();
@@ -242,8 +242,6 @@ public class DXFile extends DXDataObject {
          * @return size of file
          */
         public Long getSize() {
-            Preconditions.checkState(this.size != null,
-                    "file size is not accessible because it was not retrieved with the describe call");
             return size;
         }
     }
@@ -337,10 +335,10 @@ public class DXFile extends DXDataObject {
         }
 
         // The implementation of this method is as follows:
-        // API requests are made to download ranges of bytes, which are stored in rawFileBytesQueue.
-        // The number of bytes in rawFileBytesQueue is at least the size of a file part. The bytes
-        // inside rawFileBytesQueue are checksummed, and then propagated into finishQueue. The bytes
-        // in finishQueue are returned to the client.
+        // API requests are made to download ranges of bytes, which are stored in rawFileBytesQueue,
+        // until the number of bytes in rawFileBytesQueue is at least the size of a file part. The
+        // bytes inside rawFileBytesQueue are checksummed, and then propagated into finishQueue. The
+        // bytes in finishQueue are returned to the client.
         // Bytes propagation in summary:
         // API request -> rawFileBytesQueue -> (checksumming) -> finishQueue -> client
         @Override
@@ -364,6 +362,9 @@ public class DXFile extends DXDataObject {
                 }
 
                 long filePartSize = partsMetadata.getChunkSize(fileParts.get(filePartInd));
+                if (filePartSize > Integer.MAX_VALUE) {
+                    throw new IOException("File part size exceeds 2GB");
+                }
                 while (numBytesNotYetChecksummed < filePartSize) {
                     long chunkSize = getNextChunkSize();
 
@@ -390,7 +391,7 @@ public class DXFile extends DXDataObject {
                     while (checksumOff < checksumBytes.length) {
                         InputStream rawFileStream = rawFileBytesQueue.peek();
                         int bytesReadForChecksum =
-                                rawFileStream.read(checksumBytes, checksumOff, (int)(filePartSize - Long.valueOf(checksumOff)));
+                                rawFileStream.read(checksumBytes, checksumOff, (int)filePartSize - checksumOff);
                         if (bytesReadForChecksum == -1) {
                             rawFileBytesQueue.remove();
                         } else {
@@ -551,7 +552,7 @@ public class DXFile extends DXDataObject {
         private String url;
     }
 
-    private static class HTTPPartDownloader implements PartDownloader {
+    private static class HttpPartDownloader implements PartDownloader {
         /**
          * HTTP GET request to download part of the file.
          *
@@ -735,6 +736,7 @@ public class DXFile extends DXDataObject {
     private final int ramp = 2;
 
     // Variables for upload
+    // Upload chunk size must not exceed 2GB
     @VisibleForTesting
     int uploadChunkSize = 16 * 1024 * 1024;
 
@@ -853,7 +855,7 @@ public class DXFile extends DXDataObject {
      * @return stream containing file contents within range specified
      */
     public InputStream getDownloadStream(long start, long end) {
-        return new FileApiInputStream(start, end, new HTTPPartDownloader());
+        return new FileApiInputStream(start, end, new HttpPartDownloader());
     }
 
     @VisibleForTesting

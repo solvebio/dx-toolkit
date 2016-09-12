@@ -102,8 +102,8 @@ public class DXFileTest {
         int maxChunkSize = 16 * 1024 * 1024;
         int chunksize = minChunkSize;
 
-        long start = 0;
-        long end;
+        int start = 0;
+        int end;
 
         while (start < uploadBytes.length) {
             if (request > 4) {
@@ -114,13 +114,15 @@ public class DXFileTest {
             end = Math.min(start + chunksize, uploadBytes.length);
 
             if (end == uploadBytes.length) {
-                byte[] corruptBytes = new byte[(int) (end - start)];
-                Arrays.fill(corruptBytes, (byte) 1);
-                when(mockPartDownloader.get(anyString(), eq(start), eq(end - 1))).thenReturn(
+                byte[] corruptBytes = new byte[end - start];
+                Arrays.fill(corruptBytes, 0, corruptBytes.length - 1, (byte) 0);
+                // Corrupt the last byte of the file
+                Arrays.fill(corruptBytes, corruptBytes.length - 1, corruptBytes.length, (byte) 1);
+                when(mockPartDownloader.get(anyString(), eq(Long.valueOf(start)), eq(Long.valueOf(end - 1)))).thenReturn(
                         corruptBytes);
             } else {
-                when(mockPartDownloader.get(anyString(), eq(start), eq(end - 1))).thenReturn(
-                        Arrays.copyOfRange(uploadBytes, (int) start, (int) end));
+                when(mockPartDownloader.get(anyString(), eq(Long.valueOf(start)), eq(Long.valueOf(end - 1)))).thenReturn(
+                        Arrays.copyOfRange(uploadBytes, start, end));
             }
 
             start = end;
@@ -129,11 +131,13 @@ public class DXFileTest {
 
         byte[] b = new byte[5 * 1024 * 1024];
         is.read(b, 0, 5 * 1024 * 1024);
+        // File part 1 should pass checksumming
         Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 0, 5 * 1024 * 1024), b);
 
         try {
             b = new byte[1];
             is.read(b, 0, 1);
+            // File part 2 should fail checksumming
             Assert.fail();
         } catch (IOException e) {
             // expected
@@ -318,12 +322,15 @@ public class DXFileTest {
         f.upload(uploadBytes);
         f.closeAndWait();
 
+        // End byte before end of file part
         byte[] downloadBytes = f.downloadBytes(0, 4 * 1024 * 1024);
         Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 0, 4 * 1024 * 1024), downloadBytes);
 
+        // Start byte in the middle of a file part, end byte in the middle of the next file part
         downloadBytes = f.downloadBytes(4 * 1024 * 1024, 6 * 1024 * 1024);
         Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 4 * 1024 * 1024, 6 * 1024 * 1024), downloadBytes);
 
+        // End byte is the end of the file
         downloadBytes = f.downloadBytes(6 * 1024 * 1024, -1);
         Assert.assertArrayEquals(Arrays.copyOfRange(uploadBytes, 6 * 1024 * 1024, 10 * 1024 * 1024), downloadBytes);
     }
@@ -362,8 +369,9 @@ public class DXFileTest {
 
     @Test
     public void testUploadDownloadWithTrailingEmptyPart() throws IOException {
-        // Upload bytes so that there are no extra bytes to flush out
-        // This is done by making the uploadChunkSize a multiple of the uploadBytes size
+        // Upload bytes so that there are no extra bytes to flush out. This will allow an empty part
+        // to be uploaded as the last part. This is done by making the uploadChunkSize a multiple of
+        // the uploadBytes size.
         byte[] uploadBytes = new byte[5 * 1024 * 1024];
         new Random().nextBytes(uploadBytes);
 
