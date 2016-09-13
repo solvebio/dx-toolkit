@@ -296,6 +296,7 @@ def get_resolved_jbors(resolved_thing, orig_thing, resolved_jbors):
 
 def render_bundleddepends(thing):
     from ..bindings.search import find_one_data_object
+    from ..exceptions import DXError
     bundles = []
     for item in thing:
         bundle_asset_record = dxpy.DXFile(item["id"]["$dnanexus_link"]).get_properties().get("AssetBundle")
@@ -307,7 +308,7 @@ def render_bundleddepends(thing):
         if asset:
             try:
                 bundles.append(asset.describe().get("name") + " (" + asset.get_id() + ")")
-            except:
+            except DXError:
                 asset = None
 
         if not asset:

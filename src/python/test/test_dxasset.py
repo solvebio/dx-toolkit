@@ -109,7 +109,7 @@ class TestDXBuildAsset(DXTestCase):
         asset_spec = {
             "name": "asset_library_name",
             "title": "A human readable name",
-            "description": " A detailed description about the asset",
+            "description": "A detailed description about the asset",
             "version": "0.0.1",
             "distribution": "Ubuntu",
             "release": "12.04",
@@ -128,7 +128,7 @@ class TestDXBuildAsset(DXTestCase):
         asset_spec = {
             "name": "foo",
             "title": "A human readable name",
-            "description": " A detailed description about the asset",
+            "description": "A detailed description about the asset",
             "version": "0.0.1",
             "distribution": "Ubuntu",
             "release": "12.04",
@@ -149,7 +149,7 @@ class TestDXBuildAsset(DXTestCase):
         asset_spec = {
             "name": "asset_library_name",
             "title": "A human readable name",
-            "description": " A detailed description about the asset",
+            "description": "A detailed description about the asset",
             "version": "0.0.1",
             "distribution": "Ubuntu",
             "release": "12.04"
@@ -161,7 +161,7 @@ class TestDXBuildAsset(DXTestCase):
     def test_build_asset_missing_fields(self):
         asset_spec = {
             "title": "A human readable name",
-            "description": " A detailed description about the asset",
+            "description": "A detailed description about the asset",
             "version": "0.0.1",
             "distribution": "Ubuntu",
             "release": "12.04"
@@ -175,7 +175,7 @@ class TestDXBuildAsset(DXTestCase):
         asset_spec = {
             "name": "asset_library_name",
             "title": "A human readable name",
-            "description": " A detailed description about the asset",
+            "description": "A detailed description about the asset",
             "version": "0.0.1",
             "distribution": "Ubuntu",
             "release": "12.04"
@@ -190,7 +190,7 @@ class TestDXBuildAsset(DXTestCase):
         asset_spec = {
             "name": "asset_library_name",
             "title": "A human readable name",
-            "description": " A detailed description about the asset",
+            "description": "A detailed description about the asset",
             "version": "0.0.1",
             "distribution": "Ubuntu",
             "release": "12.04"
@@ -206,7 +206,7 @@ class TestDXBuildAsset(DXTestCase):
         asset_spec = {
             "name": "asset library name with space",
             "title": "A human readable name",
-            "description": " A detailed description about the asset",
+            "description": "A detailed description about the asset",
             "version": "0.0.1",
             "distribution": "Ubuntu",
             "release": "12.04"
@@ -248,7 +248,7 @@ class TestDXBuildAsset(DXTestCase):
         asset_spec = {
             "name": "asset_library_name",
             "title": "A human readable name",
-            "description": " A detailed description about the asset",
+            "description": "A detailed description about the asset",
             "version": "0.0.1",
             "distribution": "Ubuntu",
             "release": "12.04",
@@ -261,7 +261,6 @@ class TestDXBuildAsset(DXTestCase):
 
     @unittest.skipUnless(testutil.TEST_RUN_JOBS, 'skipping test that would run jobs')
     def test_get_appet_with_asset(self):
-        # upload a tar.gz file with spaces in its name
         bundle_name = "test-bundle-depends.tar.gz"
         bundle_tmp_dir = tempfile.mkdtemp()
         os.mkdir(os.path.join(bundle_tmp_dir, "a"))
@@ -273,16 +272,14 @@ class TestDXBuildAsset(DXTestCase):
                                              project=self.project,
                                              wait_on_close=True)
 
-        asset_spec = {
-            "name": "asset library name with space",
-            "title": "A human readable name",
-            "description": " A detailed description about the asset",
-            "version": "0.0.1",
-            "distribution": "Ubuntu",
-            "release": "12.04"
-        }
-        asset_dir = self.write_asset_directory("build_and_use_asset", json.dumps(asset_spec))
-        asset_bundle_id = json.loads(run('dx build_asset --json ' + asset_dir))['id']
+        asset_file = dxpy.upload_local_file(filename=os.path.join(bundle_tmp_dir, bundle_name),
+                                            project=self.project,
+                                            wait_on_close=True)
+        asset_run_cmd = "dx new record -o asset-lib-test --type AssetBundle --property version=0.0.1 \
+                        --details '{\"archiveFileId\": {\"$dnanexus_link\": \"" + \
+                        asset_file.get_id() + "\" }}' --close --brief"
+        asset_bundle_id = run(asset_run_cmd).strip()
+        asset_file.set_properties({"AssetBundle": asset_bundle_id})
 
         code_str = """#!/bin/bash
                     main(){
@@ -311,7 +308,7 @@ class TestDXBuildAsset(DXTestCase):
             self.assertTrue(os.path.exists(os.path.join("asset_depends", "dxapp.json")))
 
             applet_spec = json.load(open(os.path.join("asset_depends", "dxapp.json")))
-            self.assertEqual([{"name": "asset library name with space",
+            self.assertEqual([{"name": "asset-lib-test",
                                "project": self.project,
                                "folder": "/",
                                "version": "0.0.1"}
@@ -325,7 +322,7 @@ class TestDXBuildAsset(DXTestCase):
         asset_spec = {
             "name": "tarball_property_assetbundle",
             "title": "A human readable name",
-            "description": " A detailed description about the asset",
+            "description": "A detailed description about the asset",
             "version": "0.0.1",
             "distribution": "Ubuntu",
             "release": "12.04"
