@@ -65,11 +65,12 @@ void osInfo(){
   vi.dwOSVersionInfoSize = sizeof(vi);
   try {
     GetVersionEx(&vi);
-  } catch(Exception &e){
-    cout << "Unable to get OS information" << endl;
+    cout << "Operating System:" << endl
+         << "  Windows: " << vi.dwMajorVersion << "." << vi.dwMinorVersion << "." << vi.dwBuildNumber
+         << "." << vi.dwPlatformId << " " << vi.szCSDVersion << endl;
+  } catch(exception &e){
+    cout << "Unable to get OS information" << e.what() << endl;
   }
-  cout << "Operating System:" << endl
-       << "  Windows: " << vi.dwMajorVersion << "." << dwMinorVersion << "." << dwBuildNumber << "." << dwPlatformId << " " << szCSDVersion << endl;
 #else
   struct utsname uts;
   uname(&uts);
