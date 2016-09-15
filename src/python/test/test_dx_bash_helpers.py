@@ -71,11 +71,11 @@ def build_app_with_bash_helpers(app_dir, project_id):
         # This we we can test all bash helpers as they would appear locally with all
         # necessary dependencies
         dxtoolkit_dir = os.path.join(updated_app_dir, 'resources', 'dxtoolkit')
-        local_dxtoolkit = os.path.join(os.path.dirname(__file__), '..', '..', '..')
+        local_dxtoolkit = os.path.join(os.path.dirname(os.path.abspath(__file__), '..', '..', '..'))
         print ("test bash helper location: {}".format(__file__))
         print ("Local dx-toolkit: {}".format(local_dxtoolkit))
         print ("Dest dxtoolkit_dir {}".format(dxtoolkit_dir))
-        shutil.copytree(local_dxtoolkit, dxtoolkit_dir)
+        shutil.copytree(local_dxtoolkit, dxtoolkit_dir, ignore=ignore_folders)
 
         # Add lines to the beginning of the job to make and use our new dx-toolkit
         preamble = []
@@ -93,11 +93,7 @@ def build_app_with_bash_helpers(app_dir, project_id):
             fh.write(entry_point_data)
 
         build_output = run(['dx', 'build', '--json', '--destination', project_id + ':', updated_app_dir])
-        print (build_output)
         return json.loads(build_output)['id']
-    except Exception as e:
-        print ("Exception")
-        print (e)
     finally:
         shutil.rmtree(tempdir)
 
@@ -156,8 +152,6 @@ class TestDXBashHelpers(DXTestCase):
             applet_args = ['-iseq1=A.txt', '-iseq2=B.txt', '-iref=A.txt', '-iref=B.txt', "-ivalue=5", "-iages=4"]
             cmd_args = ['dx', 'run', '--yes', '--watch', applet_id]
             cmd_args.extend(applet_args)
-            print ("Test basic cmd: ")
-            print (cmd_args)
             run(cmd_args, env=env)
 
     def test_sub_jobs(self):
