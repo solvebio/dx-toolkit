@@ -75,7 +75,7 @@ def build_app_with_bash_helpers(app_dir, project_id):
         print ("test bash helper location: {}".format(__file__))
         print ("Local dx-toolkit: {}".format(local_dxtoolkit))
         print ("Dest dxtoolkit_dir {}".format(dxtoolkit_dir))
-        shutil.copytree(local_dxtoolkit, dxtoolkit_dir, ignore=ignore_folders)
+        shutil.copytree(local_dxtoolkit, dxtoolkit_dir)
 
         # Add lines to the beginning of the job to make and use our new dx-toolkit
         preamble = []
