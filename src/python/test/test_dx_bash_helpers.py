@@ -93,6 +93,7 @@ def build_app_with_bash_helpers(app_dir, project_id):
             fh.write(entry_point_data)
 
         build_output = run(['dx', 'build', '--json', '--destination', project_id + ':', updated_app_dir])
+        print (build_output)
         return json.loads(build_output)['id']
     except Exception as e:
         print ("Exception")
@@ -155,6 +156,8 @@ class TestDXBashHelpers(DXTestCase):
             applet_args = ['-iseq1=A.txt', '-iseq2=B.txt', '-iref=A.txt', '-iref=B.txt', "-ivalue=5", "-iages=4"]
             cmd_args = ['dx', 'run', '--yes', '--watch', applet_id]
             cmd_args.extend(applet_args)
+            print ("Test basic cmd: ")
+            print (cmd_args)
             run(cmd_args, env=env)
 
     def test_sub_jobs(self):
