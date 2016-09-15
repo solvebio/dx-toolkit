@@ -94,6 +94,9 @@ def build_app_with_bash_helpers(app_dir, project_id):
 
         build_output = run(['dx', 'build', '--json', '--destination', project_id + ':', updated_app_dir])
         return json.loads(build_output)['id']
+    except Exception as e:
+        print ("Exception")
+        print (e)
     finally:
         shutil.rmtree(tempdir)
 
