@@ -71,7 +71,7 @@ def build_app_with_bash_helpers(app_dir, project_id):
         # This we we can test all bash helpers as they would appear locally with all
         # necessary dependencies
         dxtoolkit_dir = os.path.join(updated_app_dir, 'resources', 'dxtoolkit')
-        local_dxtoolkit = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..')
+        local_dxtoolkit = os.path.join(os.path.dirname(__file__), '..', '..', '..')
         print ("test bash helper location: {}".format(__file__))
         print ("Local dx-toolkit: {}".format(local_dxtoolkit))
         print ("Dest dxtoolkit_dir {}".format(dxtoolkit_dir))
