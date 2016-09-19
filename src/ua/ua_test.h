@@ -18,7 +18,7 @@
 #define UA_TEST_H
 
 void runTests();
-void printEnvironmentInfo();
+void printEnvironmentInfo(bool printToken = true);
 void version();
 void osInfo();
 void proxySettings();

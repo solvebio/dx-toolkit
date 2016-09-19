@@ -794,7 +794,7 @@ int main(int argc, char * argv[]) {
 
   if (opt.env()) {
     opt.setApiserverDxConfig();  // needed for 'ua --env' to report project name
-    printEnvironmentInfo();
+    printEnvironmentInfo(true);
     currentProject();
     return 0;
   }
@@ -806,8 +806,10 @@ int main(int argc, char * argv[]) {
     opt.setApiserverDxConfig();
     runTests();
     DXLOG(logUSERINFO) << "What to do next: ";
-    DXLOG(logUSERINFO) << "  Run the Upload Agent with the -v flag to get verbose output";
-    DXLOG(logUSERINFO) << "  Set DX_LIBCURL_VERBOSE environment to 1 and repeat the upload attempt to get libcurl debug logs";
+    DXLOG(logUSERINFO) << "  Run the Upload Agent with the -v flag to get verbose output:";
+    DXLOG(logUSERINFO) << "    ua -v <filename>";
+    DXLOG(logUSERINFO) << "  Set DX_LIBCURL_VERBOSE environment to 1 and repeat the upload attempt to get libcurl debug logs:";
+    DXLOG(logUSERINFO) << "    DX_LIBCURL_VERBOSE=1 ./ua <filename>";
 
     return 0;
   } else if (opt.help() || opt.files.empty()) {

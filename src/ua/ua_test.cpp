@@ -39,12 +39,12 @@ using namespace dx::config;
 void runTests()
 {
   version();
-  printEnvironmentInfo();
+  printEnvironmentInfo(false);
+  testWhoAmI();
+  currentProject();
   proxySettings();  
   osInfo();
   certificateFile();
-  testWhoAmI();
-  currentProject();
   contactGoogle();
 }
 
@@ -82,27 +82,31 @@ void osInfo(){
 #endif
 }
 
-void printEnvironmentInfo() {
+void printEnvironmentInfo(bool printToken) {
   cout << "Upload Agent v" << UAVERSION << ", environment info:" << endl
        << "  API server protocol: " << APISERVER_PROTOCOL() << endl
-       << "  API server host: " << APISERVER_HOST() << endl
-       << "  API server port: " << APISERVER_PORT() << endl;
+       << "  API server host:     " << APISERVER_HOST() << endl
+       << "  API server port:     " << APISERVER_PORT() << endl;
 
-  if (SECURITY_CONTEXT().size() != 0)
-    cout << "  Auth token: " << SECURITY_CONTEXT()["auth_token"].get<string>() << endl;
-  else
-    cout << "  Auth token: " << endl;
-
- cout << "  dx toolkit git " << string(DXTOOLKIT_GITVERSION) << endl;
+  if (printToken) {
+    if (SECURITY_CONTEXT().size() != 0)
+      cout << "  Auth token: " << SECURITY_CONTEXT()["auth_token"].get<string>() << endl;
+    else
+      cout << "  Auth token: " << endl;
+  }
 }
 
 void currentProject() {
   string projID = CURRENT_PROJECT();
   try {
-    string projName = getProjectName(projID);
-    cout << "Current Project: " << projName << " (" << projID << ")" << endl;
+    if (projID.empty()) {
+      cout << "  Current Project: None" << endl;
+    } else {
+      string projName = getProjectName(projID);
+      cout << "  Current Project: " << projName << " (" << projID << ")" << endl;
+    }
   } catch (DXAPIError &e) {
-    cout << "  Project: " << projID << endl;
+    cout << "  Current Project: "<< " (" << projID << ")" << e.what() << endl;
   }
 }
 
@@ -139,14 +143,14 @@ void proxySettings() {
 }
 
 void certificateFile() {
-  cout << "CA Certificate:" << CA_CERT() << endl;
+  cout << "CA Certificate: " << CA_CERT() << endl;
 }
 
 void testWhoAmI(){
-  cout << "Testing who am I:" << endl;
+  cout << "  Current User: ";
   try {
     JSON res = systemWhoami(string("{}"), false);
-    cout << "  User: " << res["id"].get<string>() << endl;
+    cout  << res["id"].get<string>() << endl;
   } catch(DXAPIError &e) {
     cout << "Error contacting the api: " << e.what() << endl;
   } catch (DXConnectionError &e) {
@@ -157,8 +161,8 @@ void testWhoAmI(){
 }
 
 void contactGoogle() {
-  cout << "Testing Contact Google." << endl;
-  try {    
+  cout << "Testing connection:" << endl;
+  try {
     string url = "http://www.google.com/";
     HttpRequest req = HttpRequest::request(dx::HTTP_GET, url);
     if (req.responseCode == 200) {
@@ -185,6 +189,5 @@ void contactGoogle() {
   } catch (...) {
     cout << "Error contacting google" << endl;
   } 
-
 }
 
