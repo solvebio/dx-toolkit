@@ -25,6 +25,7 @@
 #include "api_helper.h"
 #include "options.h"
 #include "api.h"
+#include "round_robin_dns.h"
 
 #if WINDOWS_BUILD
 #include <windows.h>
@@ -45,6 +46,7 @@ void runTests()
   proxySettings();  
   osInfo();
   certificateFile();
+  resolveAmazonS3();
   contactGoogle();
 }
 
@@ -185,9 +187,19 @@ void contactGoogle() {
       cout << "  Unable to contact google.com over https: (" << req.responseCode << ")" << endl;
     }
   } catch (HttpRequestException &e) {
-    cout << "Error contacting google over https: " << e.what();
+    cout << "Error contacting google over https: " << e.what() << endl;
   } catch (...) {
     cout << "Error contacting google" << endl;
-  } 
+  }
+}
+
+void resolveAmazonS3(){
+  cout << "Resolving Amazon S3:" << endl;
+  string awsIP = getRandomIP("s3.amazonaws.com");
+  if (awsIP.empty()){
+    cout << "  Unable to resolve Amazon S3" << endl;
+  } else {
+    cout << "  Resolved to " << awsIP << endl;
+  }
 }
 

@@ -805,10 +805,11 @@ int main(int argc, char * argv[]) {
   } else if (opt.test()) {
     opt.setApiserverDxConfig();
     runTests();
-    DXLOG(logUSERINFO) << "What to do next: ";
-    DXLOG(logUSERINFO) << "  Run the Upload Agent with the -v flag to get verbose output:";
+    DXLOG(logUSERINFO) << endl <<"What to do next: ";
+    DXLOG(logUSERINFO) << "  1. Run the Upload Agent with the -v flag to get verbose output:";
+    DXLOG(logUSERINFO) << "    ua -v --test";
     DXLOG(logUSERINFO) << "    ua -v <filename>";
-    DXLOG(logUSERINFO) << "  Set DX_LIBCURL_VERBOSE environment to 1 and repeat the upload attempt to get libcurl debug logs:";
+    DXLOG(logUSERINFO) << "  2. Set DX_LIBCURL_VERBOSE environment to 1 and repeat the upload attempt to get libcurl debug logs:";
     DXLOG(logUSERINFO) << "    DX_LIBCURL_VERBOSE=1 ./ua <filename>";
 
     return 0;

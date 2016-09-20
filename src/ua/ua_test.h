@@ -26,4 +26,5 @@ void currentProject();
 void certificateFile();
 void testWhoAmI();
 void contactGoogle();
+void resolveAmazonS3();
 #endif
