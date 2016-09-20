@@ -17,6 +17,8 @@ import json
 import multiprocessing.dummy
 import tempfile
 import glob
+import datetime
+import dateutil.parser
 
 CACHE_DIR = '/dx-docker-cache'
 
@@ -128,12 +130,22 @@ def run(args):
             'size': shell_suppress(["du", "-sh", tmpdir]).split()[0]
         }
 
+        if 'created' in annotations:
+            created_time = dateutil.parser.parse(annotations['created'])
+            current_time = datetime.datetime.now(dateutil.tz.tzutc())
+            time_since_creation = current_time - created_time
+            if (time_since_creation.days == 0 and time_since_creation.seconds < 10*60):
+               human_readable_delta = "(just now)"
+            else:
+               human_readable_delta = "({}d {}h ago)".format(time_since_creation.days, time_since_creation.seconds/3600)
+            stats['created'] = annotations['created'] + ' ' + human_readable_delta
+
         print_annotation("Image Repo", 'repository')
         print_annotation("Image Tag", 'version', data=labels)
         print_annotation("Image Size", 'size', data=stats)
         print_annotation("Image ID", 'imageid')
         print_annotation("Parent ID", 'parentimageid')
-        print_annotation("Date Pulled", 'created')
+        print_annotation("Last Updated", 'created', data=stats)
         print_annotation("Registry", 'registryurl')
         print_annotation("ENTRYPOINT", 'entrypoint')
         print_annotation("Default CMD", 'cmd')
