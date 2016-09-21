@@ -45,6 +45,7 @@
 #include "import_apps.h"
 #include "mime.h"
 #include "round_robin_dns.h"
+#include "common_utils.h"
 
 // http://www.boost.org/doc/libs/1_48_0/libs/config/doc/html/boost_config/boost_macro_reference.html
 #if ((BOOST_VERSION / 100000) < 1 || ((BOOST_VERSION/100000) == 1 && ((BOOST_VERSION / 100) % 1000) < 48))
@@ -577,7 +578,7 @@ void markFileAsFailed(vector<File> &files, const string &fileID) {
 }
 
 
-map<string, int> hashTable; // A map for hash string to index in files vector
+map<string, fs::path> hashTable; // A map for hash string to index in files vector
 map<string, string> projectTable; // A map to map project names to ids.
 void resolveProjects(const vector<string> &projects){
   // Insert unique projects into the table
@@ -617,13 +618,13 @@ void disallowDuplicateFiles(const vector<string> &files, const vector<string> &p
     }
     hash += boost::lexical_cast<string>(boost::filesystem::file_size(p)) + " ";
     hash += boost::lexical_cast<string>(boost::filesystem::last_write_time(p)) + " ";
-    hash += p.filename().string();
+    hash += fs::canonical(p).string();
     DXLOG(logDEBUG3) << "File hash: " << hash;
     if (hashTable.count(hash) > 0) {
-      throw runtime_error("File \"" + files[i] + "\" and \"" + files[hashTable[hash]] + "\" have same Signature. You cannot upload"
+      throw runtime_error("File \"" + files[i] + "\" and \"" + hashTable[hash].string() + "\" have same Signature. You cannot upload"
                            " two files with same signature to same project without using '--do-not-resume' flag");
     }
-    hashTable[hash] = i;
+    hashTable[hash] = p;
   }
 }
 
@@ -802,6 +803,9 @@ void traverseDirectory(const fs::path &localDirPath,
 }
 
 int main(int argc, char * argv[]) {
+#if LINUX_BUILD
+  LC_ALL_Hack::set_LC_ALL_C();
+#endif
   try {
     // Note: Verbose mode logging is enabled (if requested) by options parse()
     opt.parse(argc, argv);
@@ -975,5 +979,8 @@ int main(int argc, char * argv[]) {
     return 1;
   }
 
+#if LINUX_BUILD
+  LC_ALL_Hack::reset_LC_ALL();
+#endif
   return exitCode;
 }

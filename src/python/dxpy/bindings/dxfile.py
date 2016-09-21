@@ -70,13 +70,13 @@ def _readable_part_size(num_bytes):
     if B < KB:
         return '{0} {1}'.format(B, 'bytes' if B != 1 else 'byte')
     elif KB <= B < MB:
-        return '{0:.2f} KB'.format(B/KB)
+        return '{0:.2f} KiB'.format(B/KB)
     elif MB <= B < GB:
-        return '{0:.2f} MB'.format(B/MB)
+        return '{0:.2f} MiB'.format(B/MB)
     elif GB <= B < TB:
-        return '{0:.2f} GB'.format(B/GB)
+        return '{0:.2f} GiB'.format(B/GB)
     elif TB <= B:
-        return '{0:.2f} TB'.format(B/TB)
+        return '{0:.2f} TiB'.format(B/TB)
 
 
 def _get_write_buf_size(buffer_size_hint, file_upload_params, expected_file_size, file_is_mmapd=False):
@@ -770,11 +770,12 @@ class DXFile(DXDataObject):
             yield dxpy._dxhttp_read_range, [url, headers, chunk_start_pos, min(chunk_end_pos, self._file_length - 1),
                                             FILE_REQUEST_TIMEOUT], {}
 
-    def _next_response_content(self):
+    def _next_response_content(self, get_first_chunk_sequentially=False):
         if self._response_iterator is None:
             self._response_iterator = dxpy.utils.response_iterator(
                 self._request_iterator,
-                self._http_threadpool
+                self._http_threadpool,
+                do_first_task_sequentially=get_first_chunk_sequentially
             )
         try:
             return next(self._response_iterator)
@@ -817,6 +818,16 @@ class DXFile(DXDataObject):
                 raise DXFileError("Cannot read from file until it is in the closed state")
             self._file_length = int(desc["size"])
 
+        # If running on a worker, wait for the first file download chunk
+        # to come back before issuing any more requests. This ensures
+        # that all subsequent requests can take advantage of caching,
+        # rather than having all of the first DXFILE_HTTP_THREADS
+        # requests simultaneously hit a cold cache. Enforce a minimum
+        # size for this heuristic so we don't incur the overhead for
+        # tiny files (which wouldn't contribute as much to the load
+        # anyway).
+        get_first_chunk_sequentially = (self._file_length > 128 * 1024 and self._pos == 0 and dxpy.JOB_ID)
+
         if self._pos == self._file_length:
             return b""
 
@@ -839,7 +850,8 @@ class DXFile(DXDataObject):
                 if self._response_iterator is None:
                     self._request_iterator = self._generate_read_requests(
                         start_pos=self._pos, project=project, **kwargs)
-                content = self._next_response_content()
+
+                content = self._next_response_content(get_first_chunk_sequentially=get_first_chunk_sequentially)
 
                 if len(content) < remaining_len:
                     buf.write(content)
