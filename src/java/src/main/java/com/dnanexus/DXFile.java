@@ -174,7 +174,7 @@ public class DXFile extends DXDataObject {
         @JsonProperty
         private Map<Integer, PartValue> parts;
         @JsonProperty
-        private long size;
+        private Long size;
 
         private Describe() {
             super();
@@ -241,7 +241,9 @@ public class DXFile extends DXDataObject {
          *
          * @return size of file
          */
-        public Long getSize() {
+        public long getSize() {
+        	Preconditions.checkState(this.size != null,
+        			"file size is not accessible because it was not retrieved with the describe call");
             return size;
         }
     }
