@@ -793,9 +793,14 @@ int main(int argc, char * argv[]) {
   }
 
   if (opt.env()) {
-    opt.setApiserverDxConfig();  // needed for 'ua --env' to report project name
-    printEnvironmentInfo(true);
-    currentProject();
+    try {
+      opt.setApiserverDxConfig();  // needed for 'ua --env' to report project name
+      printEnvironmentInfo(true);
+      currentProject();
+    } catch (exception &e) {
+      DXLOG(logUSERINFO) << "ERROR: " << e.what() << endl;
+      return 1;
+    }
     return 0;
   }
 
@@ -803,8 +808,13 @@ int main(int argc, char * argv[]) {
     version();
     return 0;
   } else if (opt.test()) {
-    opt.setApiserverDxConfig();
-    runTests();
+    try {
+      opt.setApiserverDxConfig();
+      runTests();
+    } catch (exception &e) {
+      DXLOG(logUSERINFO) << "ERROR: " << e.what() << endl;
+      return 1;
+    }
     DXLOG(logUSERINFO) << endl <<"What to do next: ";
     DXLOG(logUSERINFO) << "  1. Run the Upload Agent with the -v flag to get verbose output:";
     DXLOG(logUSERINFO) << "    ua -v --test";
