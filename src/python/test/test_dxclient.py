@@ -1083,6 +1083,18 @@ class TestDXClient(DXTestCase):
                                prepend_srv=False,
                                max_retries=0)
 
+    def test_dx_debug_timestamp(self):
+        (stdout, stderr) = run("_DX_DEBUG=1 dx ls", also_return_stderr=True)
+        timestamp_regex = "\[\d{1,15}\.\d{0,8}\]"
+        self.assertRegexpMatches(stderr, timestamp_regex, msg="Debug log does not contain a timestamp")
+        (stdout, stderr) = run("_DX_DEBUG=2 dx ls", also_return_stderr=True)
+        self.assertRegexpMatches(stderr, timestamp_regex, msg="Debug log does not contain a timestamp")
+
+    def test_dx_api_error_msg(self):
+        error_regex = "Request Time=\[\d{1,15}\.\d{0,8}\], RequestID=\[\d{13}-\d{1,6}\]"
+        with self.assertSubprocessFailure(stderr_regexp=error_regex, exit_code=3):
+            run("dx api file-InvalidFileID describe")
+
 
 class TestDXNewRecord(DXTestCase):
     def test_new_record_basic(self):
@@ -5511,7 +5523,7 @@ class TestDXClientUpdateProject(DXTestCase):
     cmd = "dx update project {pid} --{item} {n}"
 
     def setUp(self):
-        proj_name = u"Project_name"
+        proj_name = u"Project_name" + str(time.time())
         self.project = dxpy.api.project_new({"name": proj_name})['id']
         dxpy.config["DX_PROJECT_CONTEXT_ID"] = self.project
         cd(self.project + ":/")
@@ -5519,11 +5531,14 @@ class TestDXClientUpdateProject(DXTestCase):
         if 'DX_CLI_WD' in dxpy.config:
             del dxpy.config['DX_CLI_WD']
 
+    def tearDown(self):
+        dxpy.api.project_destroy(self.project, {'terminateJobs': True})
+
     def project_describe(self, input_params):
         return dxpy.api.project_describe(self.project, input_params)
 
     def test_update_strings(self):
-        update_items = {'name': 'NewProjectName',
+        update_items = {'name': 'NewProjectName' + str(time.time()),
                         'summary': 'This is a summary',
                         'description': 'This is a description'}
 
@@ -5537,7 +5552,7 @@ class TestDXClientUpdateProject(DXTestCase):
 
     def test_update_multiple_items(self):
         #Test updating multiple items in a single api call
-        update_items = {'name': 'NewProjectName',
+        update_items = {'name': 'NewProjectName' + str(time.time()),
                         'summary': 'This is new a summary',
                         'description': 'This is new a description',
                         'protected': 'false'}
@@ -5571,7 +5586,7 @@ class TestDXClientUpdateProject(DXTestCase):
         describe_input['name'] = 'true'
 
         project_name = self.project_describe(describe_input)['name']
-        new_name = 'Another Project Name'
+        new_name = 'Another Project Name' + str(time.time())
 
         run(self.cmd.format(pid=project_name, item='name', n=pipes.quote(new_name)))
         result = self.project_describe(describe_input)
@@ -7630,6 +7645,37 @@ class TestDXGetExecutables(DXTestCaseBuildApps):
             self.assertEqual(output_app_spec, output_json)
             self.assertFalse(os.path.exists(os.path.join("get_applet", "Readme.md")))
             self.assertFalse(os.path.exists(os.path.join("get_applet", "Readme.developer.md")))
+
+    def test_get_applet_on_windows(self):
+        # This test is to verify that "dx get applet" works correctly on windows,
+        # making sure the resource directory is downloaded.
+        app_spec = {
+            "name": "get_applet_windows",
+            "dxapi": "1.0.0",
+            "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+            "inputSpec": [],
+            "outputSpec": []
+            }
+        output_app_spec = app_spec.copy()
+        output_app_spec["runSpec"] = {"file": "src/code.py", "interpreter": "python2.7"}
+
+        app_dir = self.write_app_directory("get_åpplet_windows", json.dumps(app_spec), "code.py",
+                                           code_content="import os\n")
+        os.mkdir(os.path.join(app_dir, "resources"))
+        with open(os.path.join(app_dir, "resources", "resources_file"), 'w') as f:
+            f.write('content\n')
+        new_applet_id = json.loads(run("dx build --json " + app_dir))["id"]
+        with chdir(tempfile.mkdtemp()):
+            run("dx get " + new_applet_id)
+            self.assertTrue(os.path.exists("get_applet_windows"))
+            self.assertTrue(os.path.exists(os.path.join("get_applet_windows", "dxapp.json")))
+            output_json = json.load(open(os.path.join("get_applet_windows", "dxapp.json")))
+            self.assertEqual(output_app_spec, output_json)
+            self.assertFalse(os.path.exists(os.path.join("get_applet_windows", "Readme.md")))
+            self.assertFalse(os.path.exists(os.path.join("get_applet_windows", "Readme.developer.md")))
+            self.assertEqual("import os\n", open(os.path.join("get_applet_windows", "src", "code.py")).read())
+            self.assertEqual("content\n",
+                             open(os.path.join("get_applet_windows", "resources", "resources_file")).read())
 
     def make_app(self, name, open_source=True, published=True, authorized_users=[]):
         app_spec = {
