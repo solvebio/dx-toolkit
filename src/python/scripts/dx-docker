@@ -21,7 +21,6 @@ import datetime
 import dateutil.parser
 import dxpy.utils.printing
 import dxpy
-import yaml
 
 CACHE_DIR = '/dx-docker-cache'
 
