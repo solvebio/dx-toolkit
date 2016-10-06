@@ -63,13 +63,36 @@ def extract_aci(acifile):
     return tmpdir
 
 def get_aci(image, imgname, prefix="", quiet=False):
+    def docker2aci_line(cmd):
+        popen = subprocess.Popen(cmd, stderr=subprocess.PIPE, universal_newlines=True)
+        stderr_lines = iter(popen.stderr.readline, "")
+        for stderr_line in stderr_lines:
+            yield stderr_line
+
+        popen.stderr.close()
+        return_code = popen.wait()
+        if return_code != 0:
+            raise subprocess.CalledProcessError(return_code, cmd)
     tmpdir = tempfile.mkdtemp()
     os.chdir(tmpdir)
     cmd = ["docker2aci", "-compression", "none", imgname]
     if quiet:
         shell_suppress(cmd)
     else:
-        shell(cmd)
+        layers = {}
+        for line in docker2aci_line(cmd):
+            _, imghash, downloaded, _, _, total, _ = line.rstrip().split()
+            percent = round(float(downloaded)/float(total),1)
+            def print_progress():
+                sys.stderr.write(dxpy.utils.printing.BLUE(imghash)+": "+dxpy.utils.printing.YELLOW("{}/{} bytes\n".format(downloaded, total)))
+            if imghash not in layers:
+                layers[imghash] = percent
+                if percent == 1:
+                    print_progress()
+            elif layers[imghash] != percent and percent > 0:
+                print_progress()
+                layers[imghash] = percent
+
     img_basedir, img_fname = os.path.split(image)
     img_dirname = prefix+CACHE_DIR+"/"+img_basedir
     shell_suppress(["mkdir", "-p", img_dirname])
@@ -97,7 +120,7 @@ parser_run.add_argument("command", help="command to run within container", nargs
 def run(args):
     acifile = get_aci_fname(args.image)
     if not acifile:
-        pull(parser_pull.parse_args(["-q", args.image]))
+        pull(parser_pull.parse_args([args.image]))
         acifile = get_aci_fname(args.image)
 
     if args.rootfs:
