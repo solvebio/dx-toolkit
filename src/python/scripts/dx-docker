@@ -81,10 +81,14 @@ def get_aci(image, imgname, prefix="", quiet=False):
     else:
         layers = {}
         for line in docker2aci_line(cmd):
-            _, imghash, downloaded, unita, _, total, unitb = line.rstrip().split()
+            fields = line.rstrip().split()
+            if len(fields) == 7 and fields[0] == "Downloading":
+                _, imghash, downloaded, unita, _, total, unitb = line.rstrip().split()
+            else:
+                sys.stderr.write(line)
             percent = round(float(downloaded)/float(total),1)
             def print_progress():
-                sys.stderr.write(dxpy.utils.printing.BLUE(imghash)+": "+dxpy.utils.printing.YELLOW("{}/{} {}\n".format(downloaded, total, unitb)))
+                sys.stderr.write(dxpy.utils.printing.BLUE(imghash)+": "+dxpy.utils.printing.YELLOW("{} {}\t{} {}\n".format(downloaded, unita, total, unitb)))
             if imghash not in layers:
                 layers[imghash] = percent
                 if percent == 1:
