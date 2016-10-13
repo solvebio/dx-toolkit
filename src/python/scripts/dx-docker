@@ -65,7 +65,7 @@ def extract_aci(acifile):
 
 def get_aci(image, imgname, prefix="", quiet=False):
     def docker2aci_line(cmd):
-        popen = subprocess.Popen(cmd, stderr=subprocess.PIPE, universal_newlines=True)
+        popen = subprocess.Popen(cmd, stderr=subprocess.PIPE, stdout=open(os.devnull, "w"), universal_newlines=True)
         stderr_lines = iter(popen.stderr.readline, "")
         for stderr_line in stderr_lines:
             yield stderr_line
