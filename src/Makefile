@@ -243,6 +243,8 @@ bin/proot:
 bin/docker2aci:
 ifeq ($(UNAME), Darwin)
 	curl -k -sL https://dl.dnanex.us/F/D/q03gPbfx8kFq97BxPZz39k2XKq9Bv5Y1G1pggP67/docker2aci-osx > $(DNANEXUS_HOME)/bin/docker2aci && chmod 777 $(DNANEXUS_HOME)/bin/docker2aci
+else ifeq ($(OS), Windows_NT)
+    echo "WARNING: dx-docker add-to-asset, upload not currently supported on Windows."
 else
 	curl -k -sL https://dl.dnanex.us/F/D/gzXf3VbVf052FXkKB7yq9PPxGqBKfpbPZPq6V7jx/docker2aci > $(DNANEXUS_HOME)/bin/docker2aci && chmod 777 $(DNANEXUS_HOME)/bin/docker2aci
 endif
