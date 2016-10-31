@@ -101,6 +101,7 @@ bool keepShowingUploadProgress = true;
  */
 
 unsigned int totalChunks = 0;
+bool readStdinDone = false;
 
 BlockingQueue<Chunk*> chunksToRead;
 BlockingQueue<Chunk*> chunksToCompress;
@@ -120,6 +121,9 @@ string userAgentString; // definition (declared in chunk.h)
 int NUM_CHUNK_CHECKS = 3;
 
 bool finished() {
+  if (opt.standardInput && !readStdinDone) {
+    return false;
+  }
   return (chunksFinished.size() + chunksFailed.size() == totalChunks);
 }
 
@@ -250,16 +254,28 @@ bool isMemoryUseNormal() {
   return true;
 }
 
+void readStdinChunks(vector<File> &files) {
+  try {
+    totalChunks = files[0].readStdin(chunksToCompress, opt.tries);
+    readStdinDone = true;
+    DXLOG(logINFO) << "Read " << totalChunks << " chunks from stdin.";
+  } catch(std::bad_alloc &e) {
+    boost::call_once(bad_alloc_once, boost::bind(&handle_bad_alloc, e));
+  } catch (boost::thread_interrupted &ti) {
+    return;
+  }
+}
+
 void readChunks() {
   try {
     int delay = 1;
     while (true) {
       // If the upload  is using a lot of memory delay the read thread for a bit.
       if (!isMemoryUseNormal()) {
-	delay = min(delay*2, 16);	
-	DXLOG(logWARNING) << "RSS larger than limit. Delaying read thread by " << delay << "secs";
-	boost::this_thread::sleep(boost::posix_time::seconds(delay));
-	continue;
+        delay = min(delay*2, 16);
+        DXLOG(logWARNING) << "RSS larger than limit. Delaying read thread by " << delay << "secs";
+        boost::this_thread::sleep(boost::posix_time::seconds(delay));
+        continue;
       }
       delay = 1; //Reset the delay
       Chunk * c = chunksToRead.consume();
@@ -502,9 +518,14 @@ void uploadProgress(vector<File> &files) {
 void createWorkerThreads(vector<File> &files) {
   DXLOG(logINFO) << "Creating worker threads:";
 
-  DXLOG(logINFO) << " read...";
-  for (int i = 0; i < opt.readThreads; ++i) {
-    readThreads.push_back(boost::thread(readChunks));
+  if (opt.standardInput) {
+    DXLOG(logINFO) << " read stdin...";
+    readThreads.push_back(boost::thread(readStdinChunks, boost::ref(files)));
+  } else {
+    DXLOG(logINFO) << " read...";
+    for (int i = 0; i < opt.readThreads; ++i) {
+      readThreads.push_back(boost::thread(readChunks));
+    }
   }
 
   DXLOG(logINFO) << " compress...";
@@ -728,9 +749,17 @@ File createFile(const std::string &filePath,
                 const std::string &folders,
                 const std::string &name,
                 const unsigned int &fileIndex) {
-  DXLOG(logINFO) << "Getting MIME type for local file " << filePath << "...";
-  string mimeType = getMimeType(filePath);
-  DXLOG(logINFO) << "MIME type for local file " << filePath << " is '" << mimeType << "'.";
+  string mimeType = "";
+  if (!opt.standardInput) {
+    DXLOG(logINFO) << "Getting MIME type for local file " << filePath << "...";
+    mimeType = getMimeType(filePath);
+    DXLOG(logINFO) << "MIME type for local file " << filePath << " is '" << mimeType << "'.";
+  } else {
+    // For stdin input, use the extension of the filename
+    mimeType = fs::path(name).extension().string();
+  }
+
+
   bool toCompress;
   if (!opt.doNotCompress) {
     bool is_compressed = isCompressed(mimeType);
@@ -747,7 +776,7 @@ File createFile(const std::string &filePath,
   }
   return File(filePath, project, folders, name, opt.visibility,
          opt.properties, opt.type, opt.tags, opt.details,
-         toCompress, !opt.doNotResume, mimeType, opt.chunkSize, fileIndex);
+         toCompress, !opt.doNotResume, mimeType, opt.chunkSize, fileIndex, opt.standardInput);
 }
 
 void traverseDirectory(const fs::path &localDirPath,
@@ -850,7 +879,7 @@ int main(int argc, char * argv[]) {
       DXLOG(logUSERINFO) << "ERROR: " << e.what() << endl;
       return 3;
     }
-    if (!opt.doNotResume) {
+    if (!opt.doNotResume && !opt.standardInput) {
       resolveProjects(opt.projects);
       disallowDuplicateFiles(opt.files, opt.projects);
     }
@@ -877,7 +906,9 @@ int main(int argc, char * argv[]) {
       } else {
         unsigned int fileIndex = files.size();
         files.push_back(createFile(opt.files[i], opt.projects[i], opt.folders[i], opt.names[i], fileIndex));
-        totalChunks += files[fileIndex].createChunks(chunksToRead, opt.tries);
+        if (!opt.standardInput) {
+          totalChunks += files[fileIndex].createChunks(chunksToRead, opt.tries);
+        }
       }
     }
 

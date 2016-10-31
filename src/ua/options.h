@@ -72,6 +72,7 @@ public:
   bool waitOnClose;
   bool recursive;
   bool overrideFileLimit;
+  bool standardInput;
 
   // Import flags
   bool reads;
