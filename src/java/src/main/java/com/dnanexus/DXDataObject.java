@@ -956,6 +956,7 @@ public abstract class DXDataObject extends DXObject {
         DXDataObject obj = this.close();
         // TODO: allow supplying a timeout
         while (true) {
+            System.err.println("[" + System.currentTimeMillis() + "] Testing state of " + this.getId());
             DataObjectState currentState = this.describe(
                     DescribeOptions.get().withCustomFields(ImmutableList.of("state"))).getState();
             if (currentState == DataObjectState.CLOSED) {
