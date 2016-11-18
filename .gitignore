@@ -12,10 +12,8 @@
 /src/.setup_doc_virtualenv
 /src/java/target/
 /src/java/src/main/java/com/dnanexus/DXToolkitVersion.java
-/src/perl/DNAnexus-*
 /src/python/dxpy/toolkit_version.py
 /src/python/coverage-reports/
-/src/ruby/lib/dxruby/version.rb
 /src/dx-wig-to-wiggle/build
 /src/R/install_dxR_deps.Rout
 /src/R/dxR*.tar.gz
@@ -95,3 +93,6 @@ dxR.Rcheck
 /src/ua/ua
 test-job-workspaces
 .idea/
+
+/contrib/perl/DNAnexus-*
+/contrib/ruby/lib/dxruby/version.rb
