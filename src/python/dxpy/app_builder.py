@@ -678,14 +678,26 @@ def _update_version(app_name, version, app_spec, try_update=True):
             return None
         raise e
 
-def create_app(applet_id, applet_name, src_dir, publish=False, set_default=False, billTo=None, try_versions=None, try_update=True, confirm=True):
+
+def create_app(applet_id, applet_name, src_dir, publish=False, set_default=False, billTo=None, try_versions=None,
+               try_update=True, confirm=True, regional_options=None):
     """
     Creates a new app object from the specified applet.
+
+    :param regional_options: The regional configurations that will be used to
+    create this app. The caller is responsible for ensuring that the dict, if
+    specified, is well-formed.
+    :type regional_options: dict
     """
     app_spec = _get_app_spec(src_dir)
     logger.info("Will create app with spec: %s" % (app_spec,))
 
-    app_spec["applet"] = applet_id
+    if regional_options is None:
+        # TODO: Specify the applet in a multi-region-enabled manner. Will need
+        # to somehow fetch the region of the applet.
+        app_spec["applet"] = applet_id
+    else:
+        app_spec["regionalOptions"] = regional_options
     app_spec["name"] = applet_name
 
     # Inline Readme.md and Readme.developer.md
@@ -854,3 +866,14 @@ def create_app(applet_id, applet_name, src_dir, publish=False, set_default=False
             dxpy.api.app_add_tags(app_id, input_params={'tags': ['default']})
 
     return app_id
+
+
+def get_regional_options(dx_app_json):
+    requested_regional_options = dx_app_json.get("regionalOptions")
+    if requested_regional_options is None:
+        return None
+    if not isinstance(requested_regional_options, dict):
+        raise AppBuilderException("The field 'regionalOptions' in dxapp.json must be a mapping")
+    if len(requested_regional_options.keys()) < 1:
+        raise AppBuilderException("The field 'regionalOptions' in dxapp.json must be a non-empty mapping")
+    return requested_regional_options

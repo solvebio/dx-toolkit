@@ -5650,6 +5650,27 @@ class TestDXBuildApp(DXTestCaseBuildApps):
         self.assertEqual(applet_describe["id"], applet_describe["id"])
         self.assertEqual(applet_describe["name"], "minimal_applet")
 
+        name = "asset_applet_{t}".format(t=int(time.time() * 1000))
+        app_spec = {
+            "name": name,
+            "dxapi": "1.0.0",
+            "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+            "inputSpec": [],
+            "outputSpec": [],
+            "version": "1.0.0",
+
+            # Will be ignored when building applets.
+            "regionalOptions": {"aws:us-east-1": {}}
+            }
+        app_dir = self.write_app_directory(name, json.dumps(app_spec), "code.py")
+        new_applet = json.loads(run("dx build --json " + app_dir))
+        applet_describe = json.loads(run("dx describe --json " + new_applet["id"]))
+        self.assertEqual(applet_describe["class"], "applet")
+        self.assertEqual(applet_describe["id"], applet_describe["id"])
+        self.assertEqual(applet_describe["name"], name)
+        # We already know this via the API, but here goes.
+        self.assertNotIn("regionalOptions", applet_describe)
+
     def test_dx_build_applet_dxapp_json_created_with_makefile(self):
         app_name = "nodxapp_applet"
         app_dir = self.write_app_directory(app_name, None, "code.py")
@@ -5799,6 +5820,22 @@ class TestDXBuildApp(DXTestCaseBuildApps):
             }
         app_dir = self.write_app_directory("minimal_remote_build_åpp", json.dumps(app_spec), "code.py")
         run("dx build --remote --app " + app_dir)
+
+    @unittest.skipUnless(testutil.TEST_RUN_JOBS and testutil.TEST_ISOLATED_ENV,
+                         'skipping test that would create apps and run jobs')
+    def test_cannot_remote_build_multi_region_app(self):
+        app_name = "asset_{t}_remote_multi_region_app".format(t=int(time.time()))
+        app_spec = {
+            "name": app_name,
+            "dxapi": "1.0.0",
+            "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+            "inputSpec": [],
+            "outputSpec": [],
+            "version": "1.0.0"
+            }
+        app_dir = self.write_app_directory(app_name, json.dumps(app_spec), "code.py")
+        with self.assertSubprocessFailure(stderr_regexp='--region.*once for remote', exit_code=2):
+            run("dx build --remote --app --region aws:us-east-1 --region azure:westus " + app_dir)
 
     def test_remote_build_app_and_run_immediately(self):
         app_spec = {
@@ -5977,24 +6014,253 @@ class TestDXBuildApp(DXTestCaseBuildApps):
     @unittest.skipUnless(testutil.TEST_ISOLATED_ENV,
                          'skipping test that would create apps')
     def test_build_app(self):
+        # Backwards-compatible.
+        app_name = "asset_{t}_single_region_app".format(t=int(time.time()))
         app_spec = {
-            "name": "minimal_app",
+            "name": app_name,
             "dxapi": "1.0.0",
             "runSpec": {"file": "code.py", "interpreter": "python2.7"},
             "inputSpec": [],
             "outputSpec": [],
             "version": "1.0.0"
             }
-        app_dir = self.write_app_directory("minimal_åpp", json.dumps(app_spec), "code.py")
+        app_dir = self.write_app_directory(app_name, json.dumps(app_spec), "code.py")
         new_app = json.loads(run("dx build --create-app --json " + app_dir))
         app_describe = json.loads(run("dx describe --json " + new_app["id"]))
         self.assertEqual(app_describe["class"], "app")
         self.assertEqual(app_describe["id"], app_describe["id"])
         self.assertEqual(app_describe["version"], "1.0.0")
-        self.assertEqual(app_describe["name"], "minimal_app")
+        self.assertEqual(app_describe["name"], app_name)
         self.assertFalse("published" in app_describe)
+        self.assertIn("regionalOptions", app_describe)
+        self.assertItemsEqual(app_describe["regionalOptions"].keys(), ["aws:us-east-1"])
+
         self.assertTrue(os.path.exists(os.path.join(app_dir, 'code.py')))
         self.assertFalse(os.path.exists(os.path.join(app_dir, 'code.pyc')))
+
+        # Forwards-compatible.
+        app_name = "asset_{t}_single_region_app".format(t=int(time.time()))
+        app_spec = {
+            "name": app_name,
+            "dxapi": "1.0.0",
+            "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+            "inputSpec": [],
+            "outputSpec": [],
+            "version": "1.0.0",
+            "regionalOptions": {"aws:us-east-1": {}}
+            }
+        app_dir = self.write_app_directory(app_name, json.dumps(app_spec), "code.py")
+        new_app = json.loads(run("dx build --create-app --json " + app_dir))
+        app_describe = json.loads(run("dx describe --json " + new_app["id"]))
+        self.assertEqual(app_describe["class"], "app")
+        self.assertEqual(app_describe["id"], app_describe["id"])
+        self.assertEqual(app_describe["version"], "1.0.0")
+        self.assertEqual(app_describe["name"], app_name)
+        self.assertFalse("published" in app_describe)
+        self.assertIn("regionalOptions", app_describe)
+        self.assertItemsEqual(app_describe["regionalOptions"].keys(), app_spec["regionalOptions"].keys())
+
+        self.assertTrue(os.path.exists(os.path.join(app_dir, 'code.py')))
+        self.assertFalse(os.path.exists(os.path.join(app_dir, 'code.pyc')))
+
+    @unittest.skipUnless(testutil.TEST_ISOLATED_ENV,
+                         'skipping test that would create apps')
+    def test_build_multi_region_app(self):
+        app_name = "asset_{t}_multi_region_app".format(t=int(time.time()))
+        app_spec = {
+            "name": app_name,
+            "dxapi": "1.0.0",
+            "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+            "inputSpec": [],
+            "outputSpec": [],
+            "version": "1.0.0",
+            "regionalOptions": {"aws:us-east-1": {},
+                                "azure:westus": {}}
+            }
+        app_dir = self.write_app_directory(app_name, json.dumps(app_spec), "code.py")
+
+        app_new_res = json.loads(run("dx build --create-app --json " + app_dir))
+        app_desc_res = json.loads(run("dx describe --json " + app_new_res["id"]))
+        self.assertEqual(app_desc_res["class"], "app")
+        self.assertEqual(app_desc_res["id"], app_desc_res["id"])
+        self.assertEqual(app_desc_res["version"], "1.0.0")
+        self.assertEqual(app_desc_res["name"], app_name)
+        self.assertFalse("published" in app_desc_res)
+        self.assertIn("regionalOptions", app_desc_res)
+        self.assertItemsEqual(app_desc_res["regionalOptions"].keys(), app_spec["regionalOptions"].keys())
+
+        self.assertTrue(os.path.exists(os.path.join(app_dir, 'code.py')))
+        self.assertFalse(os.path.exists(os.path.join(app_dir, 'code.pyc')))
+
+        app_name = "asset_{t}_multi_region_app".format(t=int(time.time()))
+        app_spec = {
+            "name": app_name,
+            "dxapi": "1.0.0",
+            "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+            "inputSpec": [],
+            "outputSpec": [],
+            "version": "1.0.0"
+            }
+        app_dir = self.write_app_directory(app_name, json.dumps(app_spec), "code.py")
+
+        cmd = "dx build --create-app --region aws:us-east-1 --region azure:westus --json {app_dir}".format(
+                app_dir=app_dir)
+        app_new_res = json.loads(run(cmd))
+        app_desc_res = json.loads(run("dx describe --json " + app_new_res["id"]))
+        self.assertEqual(app_desc_res["class"], "app")
+        self.assertEqual(app_desc_res["id"], app_desc_res["id"])
+        self.assertEqual(app_desc_res["version"], "1.0.0")
+        self.assertEqual(app_desc_res["name"], app_name)
+        self.assertFalse("published" in app_desc_res)
+        self.assertIn("regionalOptions", app_desc_res)
+        self.assertItemsEqual(app_desc_res["regionalOptions"].keys(), ["aws:us-east-1", "azure:westus"])
+
+        self.assertTrue(os.path.exists(os.path.join(app_dir, 'code.py')))
+        self.assertFalse(os.path.exists(os.path.join(app_dir, 'code.pyc')))
+
+    @unittest.skipUnless(testutil.TEST_ISOLATED_ENV,
+                         'skipping test that would create apps')
+    def test_update_multi_region_app(self):
+        app_name = "asset_{t}_multi_region_app".format(t=int(time.time()))
+        app_spec = {
+            "name": app_name,
+            "dxapi": "1.0.0",
+            "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+            "inputSpec": [],
+            "outputSpec": [],
+            "version": "1.0.0",
+            "regionalOptions": {"aws:us-east-1": {},
+                                "azure:westus": {}}
+            }
+        app_dir = self.write_app_directory(app_name, json.dumps(app_spec), "code.py")
+
+        app_new_res = json.loads(run("dx build --create-app --json " + app_dir))
+        app_desc_res = json.loads(run("dx describe --json " + app_new_res["id"]))
+        self.assertIn("regionalOptions", app_desc_res)
+
+        # The underlying applets of the newly created multi-region app.
+        aws_applet = app_desc_res["regionalOptions"]["aws:us-east-1"]["applet"]
+        azure_applet = app_desc_res["regionalOptions"]["azure:westus"]["applet"]
+
+        # Update the multi-region app.
+        app_new_res = json.loads(run("dx build --create-app --json " + app_dir))
+
+        app_desc_res = json.loads(run("dx describe --json " + app_new_res["id"]))
+        self.assertFalse("published" in app_desc_res)
+        self.assertIn("regionalOptions", app_desc_res)
+
+        new_aws_applet = app_desc_res["regionalOptions"]["aws:us-east-1"]["applet"]
+        new_azure_applet = app_desc_res["regionalOptions"]["azure:westus"]["applet"]
+        self.assertNotEqual(new_aws_applet, aws_applet)
+        self.assertNotEqual(new_aws_applet, azure_applet)
+        self.assertNotEqual(new_azure_applet, azure_applet)
+        self.assertNotEqual(new_azure_applet, aws_applet)
+
+    @unittest.skipUnless(testutil.TEST_ISOLATED_ENV,
+                         'skipping test that would create apps')
+    def test_build_multi_region_app_invalid_regional_options(self):
+        app_name = "asset_{t}_multi_region_app".format(t=int(time.time()))
+        app_spec = {
+            "name": app_name,
+            "dxapi": "1.0.0",
+            "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+            "inputSpec": [],
+            "outputSpec": [],
+            "version": "1.0.0",
+            "regionalOptions": {}
+            }
+        app_dir = self.write_app_directory(app_name, json.dumps(app_spec), "code.py")
+
+        with self.assertRaisesRegexp(subprocess.CalledProcessError, "regionalOptions"):
+            run("dx build --create-app --json " + app_dir)
+
+        app_name = "asset_{t}_multi_region_app".format(t=int(time.time()))
+        app_spec = {
+            "name": app_name,
+            "dxapi": "1.0.0",
+            "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+            "inputSpec": [],
+            "outputSpec": [],
+            "version": "1.0.0",
+            "regionalOptions": {"aws:us-east-1": {}}
+            }
+        app_dir = self.write_app_directory(app_name, json.dumps(app_spec), "code.py")
+
+        with self.assertRaisesRegexp(subprocess.CalledProcessError, "regionalOptions"):
+            run("dx build --create-app --region azure:westus --json " + app_dir)
+
+        app_name = "asset_{t}_multi_region_app".format(t=int(time.time()))
+        app_spec = {
+            "name": app_name,
+            "dxapi": "1.0.0",
+            "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+            "inputSpec": [],
+            "outputSpec": [],
+            "version": "1.0.0",
+            "regionalOptions": {"azure:westus": {},
+                                "aws:us-east-1": {}}
+            }
+        app_dir = self.write_app_directory(app_name, json.dumps(app_spec), "code.py")
+
+        with self.assertRaisesRegexp(subprocess.CalledProcessError, "regionalOptions"):
+            run("dx build --create-app --region azure:westus --region aws:us-east-2 --json " + app_dir)
+
+    @unittest.skipUnless(testutil.TEST_ISOLATED_ENV,
+                         'skipping test that would create apps')
+    def test_build_multi_region_app_requires_temporary_projects(self):
+        # Attempt to build app without creating temporary projects.
+        base_cmd = "dx build --create-app --no-temp-build-project --json {app_dir}"
+
+        app_name = "asset_{t}_multi_region_app".format(t=int(time.time() * 1000))
+        app_spec = {
+            "name": app_name,
+            "dxapi": "1.0.0",
+            "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+            "inputSpec": [],
+            "outputSpec": [],
+            "version": "1.0.0",
+
+            # This is a multi-region app.
+            "regionalOptions": {"aws:us-east-1": {},
+                                "azure:westus": {}}
+            }
+        app_dir = self.write_app_directory(app_name, json.dumps(app_spec), "code.py")
+
+        # Temporary projects must be created to build multi-region apps, so we
+        # ignore the --no-temp-build-project here.
+        app_new_res = json.loads(run(base_cmd.format(app_dir=app_dir)))
+        app_desc_res = json.loads(run("dx describe --json " + app_new_res["id"]))
+        self.assertEqual(app_desc_res["class"], "app")
+        self.assertEqual(app_desc_res["id"], app_desc_res["id"])
+        self.assertEqual(app_desc_res["version"], "1.0.0")
+        self.assertEqual(app_desc_res["name"], app_name)
+        self.assertFalse("published" in app_desc_res)
+        self.assertIn("regionalOptions", app_desc_res)
+        self.assertItemsEqual(app_desc_res["regionalOptions"].keys(), app_spec["regionalOptions"].keys())
+
+        app_name = "asset_{t}_multi_region_app".format(t=int(time.time() * 1000))
+        app_spec = {
+            "name": app_name,
+            "dxapi": "1.0.0",
+            "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+            "inputSpec": [],
+            "outputSpec": [],
+            "version": "1.0.0",
+
+            # This is a single-region app.
+            "regionalOptions": {"aws:us-east-1": {}}
+            }
+        app_dir = self.write_app_directory(app_name, json.dumps(app_spec), "code.py")
+
+        app_new_res = json.loads(run(base_cmd.format(app_dir=app_dir)))
+        app_desc_res = json.loads(run("dx describe --json " + app_new_res["id"]))
+        self.assertEqual(app_desc_res["class"], "app")
+        self.assertEqual(app_desc_res["id"], app_desc_res["id"])
+        self.assertEqual(app_desc_res["version"], "1.0.0")
+        self.assertEqual(app_desc_res["name"], app_name)
+        self.assertFalse("published" in app_desc_res)
+        self.assertIn("regionalOptions", app_desc_res)
+        self.assertItemsEqual(app_desc_res["regionalOptions"].keys(), app_spec["regionalOptions"].keys())
 
     @unittest.skipUnless(testutil.TEST_ISOLATED_ENV,
                          'skipping test that would create apps')
@@ -7635,7 +7901,9 @@ class TestDXGetExecutables(DXTestCaseBuildApps):
             "developerNotes": "Developer notes\n",
             "authorizedUsers": authorized_users,
             "openSource": open_source,
-            "version": "0.0.1"
+            "version": "0.0.1",
+            "regionalOptions": {"aws:us-east-1": {},
+                                "azure:westus": {}}
             }
         # description and developerNotes should be un-inlined back to files
         output_app_spec = dict((k, v)
