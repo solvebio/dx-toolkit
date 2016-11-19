@@ -1,4 +1,8 @@
+SHELL=/bin/bash -e
+
 all: lib/dxruby/api.rb lib/dxruby/version.rb
+	gem build dxruby.gemspec
+	export GEM_HOME="$(DNANEXUS_HOME)/lib/rubygems"; gem install dxruby*.gem
 
 contrib/ruby/lib/dxruby/version.rb:
 	(if [ ! -e lib/dxruby/version.rb ]; then \

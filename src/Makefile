@@ -116,8 +116,6 @@ cpp: api_wrappers
 src_libs: api_wrappers
 	mkdir -p "$(DNANEXUS_LIBDIR)"
 	cp -R -v bash "$(DNANEXUS_LIBDIR)"
-	mkdir -p "$(DNANEXUS_HOME)/lib/perl5"
-	cp -R -v perl/lib/* "$(DNANEXUS_HOME)/lib/perl5/"
 
 PYTHON_LIBDIR := $(DNANEXUS_LIBDIR)/python2.7/site-packages
 
@@ -208,9 +206,6 @@ R: api_wrappers toolkit_version
 	mkdir -p "$(DNANEXUS_HOME)/lib/R"
 	(cd R; export R_LIBS_SITE="$(DNANEXUS_HOME)/lib/R"; R -q --no-restore --no-save < install_dxR_build_deps.R; R -q --no-restore --no-save -e "library(roxygen2); roxygenize(\"dxR\")"; R CMD INSTALL --build dxR --library="$(DNANEXUS_HOME)/lib/R"; )
 
-ruby: api_wrappers toolkit_version
-	(cd ruby; gem build dxruby.gemspec)
-	(cd ruby; export GEM_HOME="$(DNANEXUS_HOME)/lib/rubygems"; gem install dxruby*.gem)
 
 # Tools
 # =====
@@ -244,10 +239,7 @@ endif
 # Tests
 # =====
 
-test: test_python test_perl
-
-test_ruby: ruby
-	(source ../environment && ruby ruby/test/test_dxruby.rb)
+test: test_python
 
 coverage_python:
 	(cd python; export PYTHONPATH="$$PYTHONPATH:$$(echo $$(pwd)/coverage-*.egg)"; \
@@ -255,9 +247,6 @@ coverage_python:
 
 test_python:
 	../build/run_python_integration_tests.py
-
-test_perl: perl
-	(cd perl; prove)
 
 # mvn will compile the Java files, but it doesn't know how to generate the API
 # wrappers and toolkit release file.
@@ -302,18 +291,10 @@ debian_java_install: java
 	$(eval CLEANED_JAR_NAME := `cd "$(DNANEXUS_HOME)"/lib/java; ls *.jar | sed "s/dnanexus-api-\([0-9]\+\.[0-9]\+\.[0-9]\+\)-.*/dnanexus-api-\1.jar/g"`)
 	(cd "$(DNANEXUS_HOME)"/lib/java; cp -a *.jar $(DESTDIR)/$(PREFIX)/share/java/"$(CLEANED_JAR_NAME)")
 
-debian_perl_install: perl
-	mkdir -p $(DESTDIR)/$(PREFIX)/lib
-	cp -a $(DNANEXUS_HOME)/lib/perl5 $(DESTDIR)/$(PREFIX)/lib
-
 debian_r_install: R
 	mkdir -p $(DESTDIR)/$(PREFIX)/lib/R/site-library
 	cp -a $(DNANEXUS_HOME)/lib/R/{RCurl,RJSONIO} $(DESTDIR)/$(PREFIX)/lib/R/site-library/
 	cp -a $(DNANEXUS_HOME)/lib/R/dxR $(DESTDIR)/$(PREFIX)/lib/R/site-library/
-
-debian_ruby_install: ruby
-	mkdir -p $(DESTDIR)/$(PREFIX)/share/dnanexus/lib
-	cp -a "$(DNANEXUS_HOME)"/lib/rubygems $(DESTDIR)/$(PREFIX)/share/dnanexus/lib
 
 # Documentation
 # =============
@@ -349,6 +330,7 @@ doc_R: R
 	(export R_LIBS_SITE="$(DNANEXUS_HOME)/lib/R"; R --no-save < "$(DNANEXUS_HOME)/src/R/install_dxR_doc_deps.R")
 	(export R_LIBS_SITE="$(DNANEXUS_HOME)/lib/R"; R -q -e "library('parser'); library('highlight'); library('staticdocs'); build_package('R/dxR', '$(DNANEXUS_HOME)/doc/R/')")
 
+# TODO: move this target
 doc_ruby: ruby
 	-rm -rf ../doc/ruby
 	(cd ruby; yard --output-dir "$(DNANEXUS_HOME)/doc/ruby")
@@ -553,4 +535,4 @@ clean:
 	-rm -rf boost c-ares curl file openssl
 	-$(MAKE) -C jq clean
 
-.PHONY: all toolkit_version api_wrappers src_libs python pynsist_installer perl java ruby dx-contigset-to-fasta ua test test_ruby test_python test_perl install base_install debian_install doc setup_doc_build_virtualenv doc_python doc_dxcpp doc_dxjson doc_java R doc_R doc_ruby boost boost_build install_sysdeps
+.PHONY: all toolkit_version api_wrappers src_libs python pynsist_installer java dx-contigset-to-fasta ua test test_python install base_install debian_install doc setup_doc_build_virtualenv doc_python doc_dxcpp doc_dxjson doc_java R doc_R doc_ruby boost boost_build install_sysdeps

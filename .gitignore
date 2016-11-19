@@ -93,6 +93,3 @@ dxR.Rcheck
 /src/ua/ua
 test-job-workspaces
 .idea/
-
-/contrib/perl/DNAnexus-*
-/contrib/ruby/lib/dxruby/version.rb
