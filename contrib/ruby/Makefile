@@ -15,7 +15,7 @@ contrib/ruby/lib/dxruby/version.rb:
 	fi)
 
 lib/dxruby/api.rb: ../../src/api_wrappers/wrapper_table.json generateRubyAPIWrappers.py
-	cat ../../src/api_wrappers/wrapper_table.json | ./generateRubyAPIWrappers.py > ruby/lib/dxruby/api.rb
+	cat ../../src/api_wrappers/wrapper_table.json | ./generateRubyAPIWrappers.py > lib/dxruby/api.rb
 
 doc:
 	rm -rf ../../doc/ruby
