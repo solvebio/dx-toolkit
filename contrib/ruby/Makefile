@@ -1,6 +1,8 @@
 SHELL=/bin/bash -e
 
-all: lib/dxruby/api.rb lib/dxruby/version.rb
+default: ruby
+
+ruby: lib/dxruby/api.rb lib/dxruby/version.rb
 	gem build dxruby.gemspec
 	export GEM_HOME="$(DNANEXUS_HOME)/lib/rubygems"; gem install dxruby*.gem
 
@@ -18,3 +20,5 @@ lib/dxruby/api.rb: ../../src/api_wrappers/wrapper_table.json generateRubyAPIWrap
 doc:
 	rm -rf ../../doc/ruby
 	yard --output-dir ../../doc/ruby
+
+.PHONY: default ruby doc

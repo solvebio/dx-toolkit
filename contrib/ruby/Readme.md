@@ -22,7 +22,9 @@ toolchain. Instead, use `brew install ruby` to install the
 Building
 --------
 
-    make all
+    make
+    # For API documentation...
+    make doc
 
 Using the package
 -----------------
