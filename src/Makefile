@@ -330,11 +330,6 @@ doc_R: R
 	(export R_LIBS_SITE="$(DNANEXUS_HOME)/lib/R"; R --no-save < "$(DNANEXUS_HOME)/src/R/install_dxR_doc_deps.R")
 	(export R_LIBS_SITE="$(DNANEXUS_HOME)/lib/R"; R -q -e "library('parser'); library('highlight'); library('staticdocs'); build_package('R/dxR', '$(DNANEXUS_HOME)/doc/R/')")
 
-# TODO: move this target
-doc_ruby: ruby
-	-rm -rf ../doc/ruby
-	(cd ruby; yard --output-dir "$(DNANEXUS_HOME)/doc/ruby")
-
 # Upload Agent dependencies
 # =========================
 ua_deps: openssl boost curl file/stage/lib/libmagic.la

@@ -18,8 +18,6 @@
 /src/R/install_dxR_deps.Rout
 /src/R/dxR*.tar.gz
 /src/R/roxygen2_*
-/src/ruby/*.gem
-/src/ruby/.yardoc
 
 /src/openssl*.tar.gz
 /src/openssl
