@@ -1713,7 +1713,7 @@ def get_record(entity_result, args):
 def get_output_path(obj_name, obj_class, args):
     path_name = obj_name.replace('/', '%2F')
     if args.output == '-':
-        err_exit('Error: An {} '.format(obj_class) + 'cannot be dumped to stdout, please specify a directory', 3)
+        err_exit('Error: {} '.format(obj_class) + 'cannot be dumped to stdout, please specify a directory', 3)
     output_base = args.output or '.'
     if os.path.isdir(output_base):
         output_path = os.path.join(output_base, path_name)
@@ -1763,6 +1763,20 @@ def get_app(entity_result, args):
     dx_obj = dxpy.DXApp(obj_id)
     dump_executable(dx_obj, output_path, omit_resources=args.omit_resources)
 
+
+def get_workflow(entity_result, args):
+    obj_name = entity_result['describe']['name']
+    obj_id = entity_result['id']
+    output_path = get_output_path(obj_name,
+                                  entity_result['describe']['class'],
+                                  args)
+    from dxpy.utils.app_unbuilder import dump_executable
+    print("Downloading workflow data", file=sys.stderr)
+    dx_obj = dxpy.DXWorkflow(obj_id)
+    describe_output = entity_result['describe']
+    dump_executable(dx_obj, output_path, omit_resources=True, describe_output=describe_output)
+
+
 def get(args):
     # Decide what to do based on entity's class
     if not is_hashid(args.path) and ':' not in args.path and args.path.startswith('app-'):
@@ -1789,6 +1803,8 @@ def get(args):
         get_applet(project, entity_result, args)
     elif entity_result_class == 'app':
         get_app(entity_result, args)
+    elif entity_result_class == 'workflow':
+        get_workflow(entity_result, args)
     else:
         err_exit('Error: The given object is of class ' + entity_result['describe']['class'] +
                  ' but an object of class file, record, applet or app was expected', 3)
