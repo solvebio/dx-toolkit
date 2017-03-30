@@ -28,7 +28,6 @@ from __future__ import print_function, unicode_literals, division, absolute_impo
 import collections
 import json
 import os
-import subprocess
 import sys
 import tarfile
 
@@ -37,6 +36,7 @@ from .. import get_handler, download_dxfile
 from ..compat import open
 from ..exceptions import err_exit, DXError
 from .pretty_print import flatten_json_array
+
 
 def _recursive_cleanup(foo):
     """
@@ -266,9 +266,10 @@ def _dump_app_or_applet(executable, omit_resources=False, describe_output=[]):
     if devnotes:
         _write_simple_file("Readme.developer.md", devnotes)
 
+
 def dump_executable(executable, destination_directory, omit_resources=False, describe_output=[]):
     """
-    Reconstitutes an app, applet, or a workflow into a directory that would 
+    Reconstitutes an app, applet, or a workflow into a directory that would
     create a functionally identical executable if "dx build" were run on it.
     destination_directory will be the root source directory for the
     executable.
@@ -293,4 +294,3 @@ def dump_executable(executable, destination_directory, omit_resources=False, des
         err_exit()
     finally:
         os.chdir(old_cwd)
-

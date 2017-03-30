@@ -7870,7 +7870,7 @@ class TestDXGetExecutables(DXTestCaseBuildApps):
                                          })['id']
         stage_01_name = "Stage 1 name"
         stage_01_id = dxpy.api.workflow_add_stage(workflow_id,
-                                                  {"editVersion": 0, "executable": applet_01_id, 
+                                                  {"editVersion": 0, "executable": applet_01_id,
                                                   "name": stage_01_name})['stage']
         bound_input = {
             "my_number_in_02": {
@@ -7883,7 +7883,7 @@ class TestDXGetExecutables(DXTestCaseBuildApps):
 
         stage_02_name = "Stage 2 name"
         stage_02_id = dxpy.api.workflow_add_stage(workflow_id,
-                                                  {"editVersion": 1, "executable": applet_02_id, 
+                                                  {"editVersion": 1, "executable": applet_02_id,
                                                   "input": bound_input, "name": stage_02_name})['stage']
 
         output_workflow_spec = {
@@ -7898,7 +7898,7 @@ class TestDXGetExecutables(DXTestCaseBuildApps):
             {
               "id": stage_02_id,
               "name": stage_02_name,
-              "executable": applet_02_id, 
+              "executable": applet_02_id,
               "input": {
                 "my_number_in_02": {
                   "$dnanexus_link": {
