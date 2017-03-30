@@ -6,6 +6,8 @@ Categories for each release: Added, Changed, Deprecated, Removed, Fixed, Securit
 
 ## [Unreleased]
 
+* `dx get` allows to create a local representation of a workflow
+
 ## [215.0] - beta
 
 ## Added
