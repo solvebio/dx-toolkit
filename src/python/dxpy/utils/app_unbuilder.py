@@ -50,23 +50,6 @@ def _recursive_cleanup(foo):
                 del foo[key]
 
 
-def _is_stage_dxlink(x):
-    '''
-    :param x: A potential DNAnexus link
-
-    Returns whether *x* appears to be a DNAnexus link (is a dict with
-    key ``"$dnanexus_link"``) with a referenced stage field.
-    '''
-    if not isinstance(x, dict):
-        return False
-    if '$dnanexus_link' not in x:
-        return False
-    link = x['$dnanexus_link']
-    if isinstance(link, dict):
-        return ('stage' in link and ('inputField' in link or 'outputField' in link))
-    else:
-        return False
-
 def _write_json_file(filename, json_content):
     with open(filename, "w") as f:
         f.write(flatten_json_array(json.dumps(json_content, indent=2, separators=(',', ': ')), "patterns"))
@@ -78,54 +61,20 @@ def _write_simple_file(filename, content):
         f.write(content)
 
 
-def _prepare_dxworkflow_stage_input(current_stage, stages, stage_indices_by_id):
-
-    def _is_stage_reference_in_workflow(bound_input):
-        return _is_stage_dxlink(bound_input) \
-            and bound_input['$dnanexus_link']["stage"] in stage_indices_by_id
-
-    def _get_relative_reference(bound_input):
-        link = bound_input['$dnanexus_link']
-        index = str(stage_indices_by_id[link["stage"]])
-        field_type = "outputField" if "outputField" in link else "inputField"
-        field_name = link[field_type]
-        return "stage" + index + "-" + field_type + "." + field_name
-
-    current_inputs = current_stage["input"]
-    relative_inputs = {}
-    for field_name, bound_input in current_inputs.iteritems():
-        if isinstance(bound_input, list):
-            relative_list = []
-            for item in bound_input:
-                if _is_stage_reference_in_workflow(item):
-                    relative_list.append(_get_relative_reference(item))
-                else:
-                    relative_list.append(item)
-            relative_inputs[field_name] = relative_list
-        elif _is_stage_reference_in_workflow(bound_input):
-            relative_inputs[field_name] = _get_relative_reference(bound_input)
-        else:
-            relative_inputs[field_name] = bound_input
-    return relative_inputs
-
-
-def _dump_workflow(executable, describe_output=[]):
-
+def _dump_workflow(workflow_obj, describe_output=[]):
     dxworkflow_json = collections.OrderedDict()
-    for key in executable._get_required_keys():
+    dxworkflow_json["dxapi"] = "1.0.0"
+    for key in workflow_obj._get_required_keys():
         if key in describe_output:
             dxworkflow_json[key] = describe_output[key]
 
     stages = describe_output["stages"]
-    stage_indices_by_id = dict((i["id"], index) for index, i in enumerate(stages))
     new_stages = []
     for stage in stages:
         new_stage = collections.OrderedDict()
-        for key in executable._get_stage_keys():
+        for key in workflow_obj._get_stage_keys():
             if key in stage and stage[key]:
                 new_stage[key] = stage[key]
-        # Add input declaration to the stage
-        new_stage["input"] = _prepare_dxworkflow_stage_input(stage, stages, stage_indices_by_id)
         new_stages.append(new_stage)
     dxworkflow_json["stages"] = new_stages
 

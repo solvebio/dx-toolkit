@@ -7876,7 +7876,7 @@ class TestDXGetExecutables(DXTestCaseBuildApps):
             "my_number_in_02": {
               "$dnanexus_link": {
                 "stage": stage_01_id,
-                "inputField": "my_number_out_01"
+                "outputField": "my_number_out_01"
             }
           }
         }
@@ -7887,19 +7887,26 @@ class TestDXGetExecutables(DXTestCaseBuildApps):
                                                   "input": bound_input, "name": stage_02_name})['stage']
 
         output_workflow_spec = {
+            "dxapi": "1.0.0",
             "name": "get_workflow",
             "outputFolder": None,
             "stages": [{
+              "id": stage_01_id,
               "name": stage_01_name,
               "executable": applet_01_id,
-              "input": {}
             },
             {
+              "id": stage_02_id,
               "name": stage_02_name,
               "executable": applet_02_id, 
               "input": {
-              "my_number_in_02": "stage0-inputField.my_number_out_01"
-            }
+                "my_number_in_02": {
+                  "$dnanexus_link": {
+                    "outputField": "my_number_out_01",
+                    "stage": stage_01_id
+                  }
+                }
+              }
           }]
         }
         with chdir(tempfile.mkdtemp()):
