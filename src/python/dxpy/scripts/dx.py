@@ -1741,7 +1741,7 @@ def get_applet(project, entity_result, args):
     output_path = get_output_path(obj_name,
                                   entity_result['describe']['class'],
                                   args)
-    from dxpy.utils.app_unbuilder import dump_executable
+    from dxpy.utils.executable_unbuilder import dump_executable
     print("Downloading applet data", file=sys.stderr)
     dx_obj = dxpy.DXApplet(obj_id, project=project)
     describe_output = dx_obj.describe(incl_properties=True,
@@ -1758,7 +1758,7 @@ def get_app(entity_result, args):
     output_path = get_output_path(obj_name,
                                   entity_result['describe']['class'],
                                   args)
-    from dxpy.utils.app_unbuilder import dump_executable
+    from dxpy.utils.executable_unbuilder import dump_executable
     print("Downloading application data", file=sys.stderr)
     dx_obj = dxpy.DXApp(obj_id)
     dump_executable(dx_obj, output_path, omit_resources=args.omit_resources)
@@ -1770,7 +1770,7 @@ def get_workflow(entity_result, args):
     output_path = get_output_path(obj_name,
                                   entity_result['describe']['class'],
                                   args)
-    from dxpy.utils.app_unbuilder import dump_executable
+    from dxpy.utils.executable_unbuilder import dump_executable
     print("Downloading workflow data", file=sys.stderr)
     dx_obj = dxpy.DXWorkflow(obj_id)
     describe_output = entity_result['describe']
