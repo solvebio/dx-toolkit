@@ -36,7 +36,7 @@ from ..compat import basestring
 # DXWorkflow #
 ##############
 _workflow_required_keys = ['name', 'outputFolder']
-_workflow_stage_keys = ['id', 'name', 'executable', 'input', 'executionPolicy', 'systemRequirements']
+_workflow_stage_keys = ['id', 'name', 'executable', 'folder', 'input', 'executionPolicy', 'systemRequirements']
 
 def new_dxworkflow(title=None, summary=None, description=None, output_folder=None, init_from=None, **kwargs):
     '''

@@ -7887,7 +7887,6 @@ class TestDXGetExecutables(DXTestCaseBuildApps):
                                                   "input": bound_input, "name": stage_02_name})['stage']
 
         output_workflow_spec = {
-            "dxapi": "1.0.0",
             "name": "get_workflow",
             "outputFolder": None,
             "stages": [{
@@ -7899,23 +7898,15 @@ class TestDXGetExecutables(DXTestCaseBuildApps):
               "id": stage_02_id,
               "name": stage_02_name,
               "executable": applet_02_id,
-              "input": {
-                "my_number_in_02": {
-                  "$dnanexus_link": {
-                    "outputField": "my_number_out_01",
-                    "stage": stage_01_id
-                  }
-                }
-              }
+              "input": bound_input
           }]
         }
         with chdir(tempfile.mkdtemp()):
             run("dx get {workflow_id}".format(workflow_id=workflow_id))
-            self.assertTrue(os.path.exists("get_workflow"))
             self.assertTrue(os.path.exists(os.path.join("get_workflow", "dxworkflow.json")))
 
             workflow_metadata = open(os.path.join("get_workflow", "dxworkflow.json")).read()
-            output_json = json.loads(workflow_metadata)
+            output_json = json.loads(workflow_metadata, object_pairs_hook=collections.OrderedDict)
             self.assertEqual(output_workflow_spec, output_json)
 
             # Target workflow does not exist

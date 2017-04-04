@@ -63,7 +63,6 @@ def _write_simple_file(filename, content):
 
 def _dump_workflow(workflow_obj, describe_output=[]):
     dxworkflow_json = collections.OrderedDict()
-    dxworkflow_json["dxapi"] = "1.0.0"
     for key in workflow_obj._get_required_keys():
         if key in describe_output:
             dxworkflow_json[key] = describe_output[key]
