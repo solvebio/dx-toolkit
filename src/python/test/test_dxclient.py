@@ -7857,21 +7857,19 @@ class TestDXGetExecutables(DXTestCaseBuildApps):
                                             "dxapi": "1.0.0",
                                             "inputSpec": [{"name": "my_number_in_01", "class": "int"}],
                                             "outputSpec": [{"name": "my_number_out_01", "class": "int"}],
-                                            "runSpec": {"interpreter": "bash", "code": "exit 0"}
-                                           })['id']
+                                            "runSpec": {"interpreter": "bash", "code": "exit 0"}})['id']
         applet_02_id = dxpy.api.applet_new({"name": "myapplet_02",
                                             "project": self.project,
                                             "dxapi": "1.0.0",
                                             "inputSpec": [{"name": "my_number_in_02", "class": "int"}],
                                             "outputSpec": [{"name": "my_number_out_02", "class": "int"}],
-                                            "runSpec": {"interpreter": "bash", "code": "exit 0"}
-                                           })['id']
+                                            "runSpec": {"interpreter": "bash", "code": "exit 0"}})['id']
         stage_01_name = "Stage 1 name"
         stage_01_id = dxpy.api.workflow_add_stage(workflow_id,
                                                   {"editVersion": 0, "executable": applet_01_id,
                                                    "name": stage_01_name})['stage']
         bound_input = {"my_number_in_02": {
-                       "$dnanexus_link": { "stage": stage_01_id, "outputField": "my_number_out_01" }}}
+                       "$dnanexus_link": {"stage": stage_01_id, "outputField": "my_number_out_01"}}}
         stage_02_name = "Stage 2 name"
         stage_02_id = dxpy.api.workflow_add_stage(workflow_id,
                                                   {"editVersion": 1, "executable": applet_02_id,
@@ -7884,7 +7882,7 @@ class TestDXGetExecutables(DXTestCaseBuildApps):
               "id": stage_01_id,
               "name": stage_01_name,
               "executable": applet_01_id
-            },{
+            }, {
               "id": stage_02_id,
               "name": stage_02_name,
               "executable": applet_02_id,
