@@ -1807,7 +1807,7 @@ def get(args):
         get_workflow(entity_result, args)
     else:
         err_exit('Error: The given object is of class ' + entity_result['describe']['class'] +
-                 ' but an object of class file, record, applet or app was expected', 3)
+                 ' but an object of class file, record, applet, app, or workflow was expected', 3)
 
 def cat(args):
     for path in args.path:
