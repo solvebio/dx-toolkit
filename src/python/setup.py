@@ -64,7 +64,15 @@ if sys.version_info[0] < 3:
     dependencies.extend(backports_dependencies)
     # dxfs is not compatible with Windows, and is currently disabled on Python 3
     if platform.system() != 'Windows':
-        dependencies.extend(dxfs_dependencies)
+        # dependencies.extend(dxfs_dependencies)
+        print 'Skipping installation of dxfs dependencies!'
+        print ''
+        print 'SolveBio deploys on the Alpine Linux distribution, which does '
+        print 'not appear to be compatible with the xattrs (extended attributes) '
+        print 'package, which dxpy utilizes to provide a virtual filesystem on '
+        print 'the guest host. Since SolveBio does not use this functionality of '
+        print 'dxpy, it is believed safe to proceed without it.'
+        print ''
 
 if 'DNANEXUS_INSTALL_PYTHON_TEST_DEPS' in os.environ:
     dependencies.extend(test_dependencies)
