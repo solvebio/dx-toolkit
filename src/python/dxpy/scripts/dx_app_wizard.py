@@ -41,7 +41,8 @@ except:
     pass
 
 IO_NAME_PATTERN = re.compile('^[a-zA-Z_][0-9a-zA-Z_]*$')
-
+DEFAULT_REGION_AWS = 'aws:us-east-1'
+DEFAULT_REGION_AZURE = 'azure:westus'
 API_VERSION = '1.0.0'
 
 parser = argparse.ArgumentParser(description="Create a source code directory for a DNAnexus app.  You will be prompted for various metadata for the app as well as for its input and output specifications.")
@@ -365,9 +366,12 @@ array:boolean  array:int      boolean        hash           string''')
     print('')
     print(BOLD('System Requirements'))
     print('')
-    print(BOLD('Common instance types:'))
-    print(format_table(InstanceTypesCompleter.preferred_instance_types.values(),
-                       column_names=InstanceTypesCompleter.instance_types.values()[0]._fields))
+    print(BOLD('Common AWS instance types:'))
+    print(format_table(InstanceTypesCompleter.aws_preferred_instance_types.values(),
+                       column_names=list(InstanceTypesCompleter.instance_types.values())[0]._fields))
+    print(BOLD('Common Azure instance types:'))
+    print(format_table(InstanceTypesCompleter.azure_preferred_instance_types.values(),
+                       column_names=list(InstanceTypesCompleter.instance_types.values())[0]._fields))
     print(fill(BOLD('Default instance type:') + ' The instance type you select here will apply to all entry points in ' +
                'your app unless you override it. See ' +
                BOLD('https://wiki.dnanexus.com/API-Specification-v1.0.0/Instance-Types') + ' for more information.'))
@@ -375,28 +379,23 @@ array:boolean  array:int      boolean        hash           string''')
     instance_type = prompt_for_var('Choose an instance type for your app',
                                    default=InstanceTypesCompleter.default_instance_type.Name,
                                    choices=list(InstanceTypesCompleter.instance_types))
-    app_json['runSpec'].setdefault('systemRequirements', {})
-    app_json['runSpec']['systemRequirements'].setdefault('*', {})
-    app_json['runSpec']['systemRequirements']['*']['instanceType'] = instance_type
+
+    target_region = DEFAULT_REGION_AWS
+    if instance_type in InstanceTypesCompleter.azure_preferred_instance_types.keys():
+        target_region = DEFAULT_REGION_AZURE
+
+    app_json['regionalOptions'] = OrderedDict({})
+    app_json['regionalOptions'][target_region] = OrderedDict({})
+    app_json['regionalOptions'][target_region].setdefault('systemRequirements', {})
+    app_json['regionalOptions'][target_region]['systemRequirements'].setdefault('*', {})
+    app_json['regionalOptions'][target_region]['systemRequirements']['*']['instanceType'] = instance_type
 
     ######################
     # HARDCODED DEFAULTS #
     ######################
 
-    # Default of no other authorizedUsers
-    # app_json['authorizedUsers'] = []
-
-    # print('\n' + BOLD('Linux version: '))
     app_json['runSpec']['distribution'] = 'Ubuntu'
-
-    if any(instance_type.startswith(prefix) for prefix in ('mem1_hdd2', 'mem2_hdd2', 'mem3_hdd2')):
-        print(fill('Your app will run on Ubuntu 12.04. To use Ubuntu 14.04, select from the list of common instance ' +
-                   'types above.'))
-        app_json['runSpec']['release'] = '12.04'
-    else:
-        app_json['runSpec']['release'] = '14.04'
-        print(fill('Your app has been configured to run on Ubuntu 14.04. To use Ubuntu 12.04, edit the ' +
-                   BOLD('runSpec.release') + ' field of your dxapp.json.'))
+    app_json['runSpec']['release'] = '14.04'
 
     #################
     # WRITING FILES #

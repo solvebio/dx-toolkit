@@ -36,6 +36,7 @@ from __future__ import print_function, unicode_literals, division, absolute_impo
 
 import dxpy
 from . import DXObject
+from ..exceptions import DXError
 
 ###############
 # DXContainer #
@@ -201,10 +202,15 @@ class DXContainer(DXObject):
         if isinstance(self, DXProject):
             api_method = dxpy.api.project_remove_folder
 
-        api_method(self._dxid,
-                   {"folder": folder, "recurse": recurse, "force": force},
-                   always_retry=force,  # api call is idempotent under 'force' semantics
-                   **kwargs)
+        completed = False
+        while not completed:
+            resp = api_method(self._dxid,
+                              {"folder": folder, "recurse": recurse, "force": force, "partial": True},
+                              always_retry=force,  # api call is idempotent under 'force' semantics
+                              **kwargs)
+            if 'completed' not in resp:
+                raise DXError('Error removing folder')
+            completed = resp['completed']
 
     def remove_objects(self, objects, force=False, **kwargs):
         """
@@ -229,8 +235,7 @@ class DXContainer(DXObject):
                    always_retry=force,  # api call is idempotent under 'force' semantics
                    **kwargs)
 
-    def clone(self, container, destination="/", objects=[], folders=[],
-              include_hidden_links=True, **kwargs):
+    def clone(self, container, destination="/", objects=[], folders=[], **kwargs):
         """
         :param container: Destination container ID
         :type container: string
@@ -240,8 +245,6 @@ class DXContainer(DXObject):
         :type objects: list of strings
         :param folders: List of full paths to folders to move
         :type folders: list of strings
-        :param include_hidden_links: If True, also clone objects that are hidden and linked to from any of the objects that would be cloned
-        :type include_hidden_links: boolean
 
         Clones (copies) the specified objects and folders in the
         container into the folder *destination* in the container
@@ -263,8 +266,7 @@ class DXContainer(DXObject):
                           {"objects": objects,
                            "folders": folders,
                            "project": container,
-                           "destination": destination,
-                           "includeHiddenLinks": include_hidden_links},
+                           "destination": destination},
                           **kwargs)
 
 #############
@@ -277,7 +279,7 @@ class DXProject(DXContainer):
     _class = "project"
 
     def new(self, name, summary=None, description=None, protected=None,
-            restricted=None, contains_phi=None, tags=None,
+            restricted=None, download_restricted=None, contains_phi=None, tags=None,
             properties=None, bill_to=None, **kwargs):
         """
         :param name: The name of the project
@@ -290,6 +292,8 @@ class DXProject(DXContainer):
         :type protected: boolean
         :param restricted: If provided, whether the project should be restricted
         :type restricted: boolean
+        :param download_restricted: If provided, whether external downloads should be restricted
+        :type download_restricted: boolean
         :param contains_phi: If provided, whether the project should be marked as containing protected health information (PHI)
         :type contains_phi: boolean
         :param tags: If provided, tags to associate with the project
@@ -316,6 +320,8 @@ class DXProject(DXContainer):
             input_hash["protected"] = protected
         if restricted is not None:
             input_hash["restricted"] = restricted
+        if download_restricted is not None:
+            input_hash["downloadRestricted"] = download_restricted
         if contains_phi is not None:
             input_hash["containsPHI"] = contains_phi
         if bill_to is not None:
@@ -330,7 +336,7 @@ class DXProject(DXContainer):
         return self._dxid
 
     def update(self, name=None, summary=None, description=None, protected=None,
-               restricted=None, version=None, **kwargs):
+               restricted=None, download_restricted=None, version=None, **kwargs):
         """
         :param name: If provided, the new project name
         :type name: string
@@ -342,6 +348,8 @@ class DXProject(DXContainer):
         :type protected: boolean
         :param restricted: If provided, whether the project should be restricted
         :type restricted: boolean
+        :param download_restricted: If provided, whether external downloads should be restricted
+        :type download_restricted: boolean
         :param version: If provided, the update will only occur if the value matches the current project's version number
         :type version: int
 
@@ -363,6 +371,8 @@ class DXProject(DXContainer):
             update_hash["protected"] = protected
         if restricted is not None:
             update_hash["restricted"] = restricted
+        if download_restricted is not None:
+            update_hash["downloadRestricted"] = download_restricted
         if version is not None:
             update_hash["version"] = version
         dxpy.api.project_update(self._dxid, update_hash, **kwargs)
@@ -409,3 +419,20 @@ class DXProject(DXContainer):
         """
 
         dxpy.api.project_destroy(self._dxid, **kwargs)
+
+    def set_properties(self, properties, **kwargs):
+        """
+        :param properties: Property names and values given as key-value pairs of strings
+        :type properties: dict
+
+        Given key-value pairs in *properties* for property names and
+        values, the properties are set on the project for the given
+        property names. Any property with a value of :const:`None`
+        indicates the property will be deleted.
+
+        .. note:: Any existing properties not mentioned in *properties*
+           are not modified by this method.
+
+        """
+
+        return dxpy.api.project_set_properties(self._dxid, {"properties": properties}, **kwargs)

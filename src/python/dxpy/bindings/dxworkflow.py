@@ -28,6 +28,7 @@ from __future__ import print_function, unicode_literals, division, absolute_impo
 
 import re
 import dxpy
+from ..utils import instance_type_to_sys_reqs
 from ..bindings import DXDataObject, DXExecutable, DXAnalysis
 from ..exceptions import DXError
 from ..compat import basestring
@@ -35,8 +36,6 @@ from ..compat import basestring
 ##############
 # DXWorkflow #
 ##############
-_workflow_required_keys = ['name', 'outputFolder']
-_workflow_stage_keys = ['id', 'name', 'executable', 'folder', 'input', 'executionPolicy', 'systemRequirements']
 
 def new_dxworkflow(title=None, summary=None, description=None, output_folder=None, init_from=None, **kwargs):
     '''
@@ -104,11 +103,24 @@ class DXWorkflow(DXDataObject, DXExecutable):
         :type description: string
         :param output_folder: Default output folder of the workflow (optional)
         :type output_folder: string
+        :param stages: Stages of the workflow (optional)
+        :type stages: array of dictionaries
+        :param workflow_inputs: Workflow-level input specification (optional)
+        :type workflow_inputs: array of dictionaries
+        :param workflow_outputs: Workflow-level output specification (optional)
+        :type workflow_outputs: array of dictionaries
         :param init_from: Another analysis workflow object handler or and analysis (string or handler) from which to initialize the metadata (optional)
         :type init_from: :class:`~dxpy.bindings.dxworkflow.DXWorkflow`, :class:`~dxpy.bindings.dxanalysis.DXAnalysis`, or string (for analysis IDs only)
 
         Create a new remote workflow object.
         """
+
+        def _set_dx_hash(kwargs, dxhash, key, new_key=None):
+            new_key = key if new_key is None else new_key
+            if key in kwargs:
+                if kwargs[key] is not None:
+                    dxhash[new_key] = kwargs[key]
+                del kwargs[key]
 
         if "init_from" in kwargs:
             if kwargs["init_from"] is not None:
@@ -124,25 +136,13 @@ class DXWorkflow(DXDataObject, DXExecutable):
                         dx_hash["initializeFrom"]["project"] = kwargs["init_from"].get_proj_id()
             del kwargs["init_from"]
 
-        if "title" in kwargs:
-            if kwargs["title"] is not None:
-                dx_hash["title"] = kwargs["title"]
-            del kwargs["title"]
-
-        if "summary" in kwargs:
-            if kwargs["summary"] is not None:
-                dx_hash["summary"] = kwargs["summary"]
-            del kwargs["summary"]
-
-        if "description" in kwargs:
-            if kwargs["description"] is not None:
-                dx_hash["description"] = kwargs["description"]
-            del kwargs["description"]
-
-        if "output_folder" in kwargs:
-            if kwargs["output_folder"] is not None:
-                dx_hash["outputFolder"] = kwargs["output_folder"]
-            del kwargs["output_folder"]
+        _set_dx_hash(kwargs, dx_hash, "title")
+        _set_dx_hash(kwargs, dx_hash, "summary")
+        _set_dx_hash(kwargs, dx_hash, "description")
+        _set_dx_hash(kwargs, dx_hash, "output_folder", "outputFolder")
+        _set_dx_hash(kwargs, dx_hash, "stages")
+        _set_dx_hash(kwargs, dx_hash, "workflow_inputs", "inputs")
+        _set_dx_hash(kwargs, dx_hash, "workflow_outputs", "outputs")
 
         resp = dxpy.api.workflow_new(dx_hash, **kwargs)
         self.set_ids(resp["id"], dx_hash["project"])
@@ -158,7 +158,7 @@ class DXWorkflow(DXDataObject, DXExecutable):
         :param stage: A stage ID, name, or index (stage index is the number n for the nth stage, starting from 0; can be provided as an int or a string)
         :type stage: int or string
         :returns: The stage ID (this is a no-op if it was already a stage ID)
-        :raises: :class:`~dxpy.exceptions.DXError` if *stage* could not be parsed or resolved to a stage ID
+        :raises: :class:`~dxpy.exceptions.DXError` if *stage* could not be parsed, resolved to a stage ID, or it could not be found in the workflow
         '''
         # first, if it is a string, see if it is an integer
         if isinstance(stage, basestring):
@@ -180,24 +180,28 @@ class DXWorkflow(DXDataObject, DXExecutable):
                               ' stage(s), and the numerical value of the given stage identifier is out of range')
             return self.stages[stage_index].get("id")
 
-        if re.compile('^stage-[0-9A-Za-z]{24}$').match(stage) is None:
-            # Doesn't look like a stage ID, so look for it as a name
-            matching_stage_ids = [stg['id'] for stg in self.stages if stg.get('name') == stage]
-            if len(matching_stage_ids) == 0:
-                raise DXError('DXWorkflow: the given stage identifier could not be parsed as a stage ID nor found as a stage name')
-            elif len(matching_stage_ids) > 1:
-                raise DXError('DXWorkflow: more than one workflow stage was found to have the name "' + stage + '"')
-            else:
-                return matching_stage_ids[0]
-        else:
-            # Already a stage ID
-            return stage
+        if re.compile('^([a-zA-Z_]|stage-)[0-9a-zA-Z_]*$').match(stage) is not None:
+            # Check if there exists a stage with this stage id
+            stage_id_exists = any([stg['id'] for stg in self.stages if stg.get('id') == stage])
+            if stage_id_exists:
+                return stage
 
-    def add_stage(self, executable, name=None, folder=None, stage_input=None, instance_type=None,
+        # A stage with the provided ID can't be found in the workflow, so look for it as a name
+        stage_ids_matching_name = [stg['id'] for stg in self.stages if stg.get('name') == stage]
+        if len(stage_ids_matching_name) == 0:
+            raise DXError('DXWorkflow: the given stage identifier could not be found as a stage ID nor as a stage name')
+        elif len(stage_ids_matching_name) > 1:
+            raise DXError('DXWorkflow: more than one workflow stage was found to have the name "' + stage + '"')
+        else:
+            return stage_ids_matching_name[0]
+
+    def add_stage(self, executable, stage_id=None, name=None, folder=None, stage_input=None, instance_type=None,
                   edit_version=None, **kwargs):
         '''
         :param executable: string or a handler for an app or applet
         :type executable: string, DXApplet, or DXApp
+        :param stage_id: id for the stage (optional)
+        :type stage_id: string
         :param name: name for the stage (optional)
         :type name: string
         :param folder: default output folder for the stage; either a relative or absolute path (optional)
@@ -221,6 +225,8 @@ class DXWorkflow(DXDataObject, DXExecutable):
         else:
             raise DXError("dxpy.DXWorkflow.add_stage: executable must be a string or an instance of DXApplet or DXApp")
         add_stage_input = {"executable": exec_id}
+        if stage_id is not None:
+            add_stage_input["id"] = stage_id
         if name is not None:
             add_stage_input["name"] = name
         if folder is not None:
@@ -228,7 +234,7 @@ class DXWorkflow(DXDataObject, DXExecutable):
         if stage_input is not None:
             add_stage_input["input"] = stage_input
         if instance_type is not None:
-            add_stage_input["systemRequirements"] = self._inst_type_to_sys_reqs(instance_type)
+            add_stage_input["systemRequirements"] = instance_type_to_sys_reqs(instance_type)
         self._add_edit_version_to_request(add_stage_input, edit_version)
         try:
             result = dxpy.api.workflow_add_stage(self._dxid, add_stage_input, **kwargs)
@@ -289,8 +295,10 @@ class DXWorkflow(DXDataObject, DXExecutable):
             self.describe() # update cached describe
 
     def update(self, title=None, unset_title=False, summary=None, description=None,
-               output_folder=None, unset_output_folder=False, stages=None,
-               edit_version=None, **kwargs):
+               output_folder=None, unset_output_folder=False,
+               workflow_inputs=None, unset_workflow_inputs=False,
+               workflow_outputs=None, unset_workflow_outputs=False,
+               stages=None, edit_version=None, **kwargs):
         '''
         :param title: workflow title to set; cannot be provided with *unset_title* set to True
         :type title: string
@@ -306,6 +314,10 @@ class DXWorkflow(DXDataObject, DXExecutable):
         :type unset_folder: boolean
         :param stages: updates to the stages to make; see API documentation for /workflow-xxxx/update for syntax of this field; use :meth:`update_stage()` to update a single stage
         :type stages: dict
+        :param workflow_inputs: updates to the workflow input to make; see API documentation for /workflow-xxxx/update for syntax of this field
+        :type workflow_inputs: dict
+        :param workflow_outputs: updates to the workflow output to make; see API documentation for /workflow-xxxx/update for syntax of this field
+        :type workflow_outputs: dict
         :param edit_version: if provided, the edit version of the workflow that should be modified; if not provided, the current edit version will be used (optional)
         :type edit_version: int
 
@@ -316,6 +328,11 @@ class DXWorkflow(DXDataObject, DXExecutable):
             raise DXError('dxpy.DXWorkflow.update: cannot provide both "title" and set "unset_title"')
         if output_folder is not None and unset_output_folder:
             raise DXError('dxpy.DXWorkflow.update: cannot provide both "output_folder" and set "unset_output_folder"')
+        if workflow_inputs is not None and unset_workflow_inputs:
+            raise DXError('dxpy.DXWorkflow.update: cannot provide both "workflow_inputs" and set "unset_workflow_inputs"')
+        if workflow_outputs is not None and unset_workflow_outputs:
+            raise DXError('dxpy.DXWorkflow.update: cannot provide both "workflow_outputs" and set "unset_workflow_outputs"')
+
         if title is not None:
             update_input["title"] = title
         elif unset_title:
@@ -330,6 +347,14 @@ class DXWorkflow(DXDataObject, DXExecutable):
             update_input["outputFolder"] = None
         if stages is not None:
             update_input["stages"] = stages
+        if workflow_inputs is not None:
+            update_input["inputs"] = workflow_inputs
+        elif unset_workflow_inputs:
+            update_input["inputs"] = None
+        if workflow_outputs is not None:
+            update_input["outputs"] = workflow_outputs
+        elif unset_workflow_outputs:
+            update_input["outputs"] = None
 
         # only perform update if there are changes to make
         if update_input:
@@ -402,7 +427,7 @@ class DXWorkflow(DXDataObject, DXExecutable):
         if stage_input:
             update_stage_input["input"] = stage_input
         if instance_type is not None:
-            update_stage_input["systemRequirements"] = self._inst_type_to_sys_reqs(instance_type)
+            update_stage_input["systemRequirements"] = instance_type_to_sys_reqs(instance_type)
         if update_stage_input:
             update_input = {"stages": {stage_id: update_stage_input}}
             self._add_edit_version_to_request(update_input, edit_version)
@@ -411,9 +436,12 @@ class DXWorkflow(DXDataObject, DXExecutable):
             finally:
                 self.describe() # update cached describe
 
-    def _get_input_name(self, input_str):
+    def is_locked(self):
+        return self._desc.get('inputs') is not None and self._desc.get('state') == 'closed'
+
+    def _get_input_name(self, input_str, region=None, describe_output=None):
         '''
-        :param input_str: A string of one of the forms: "<exported input field name>", "<stage ID>.<input field name>", "<stage index>.<input field name>", "<stage name>.<input field name>"
+        :param input_str: A string of one of the forms: "<exported input field name>", "<explicit workflow input field name>", "<stage ID>.<input field name>", "<stage index>.<input field name>", "<stage name>.<input field name>"
         :type input_str: string
         :returns: If the given form was one of those which uses the stage index or stage name, it is translated to the stage ID for use in the API call (stage name takes precedence)
         '''
@@ -443,7 +471,7 @@ class DXWorkflow(DXDataObject, DXExecutable):
             for stage, value in kwargs['stage_instance_types'].items():
                 if stage != '*':
                     stage = self._get_stage_id(stage)
-                run_input['stageSystemRequirements'][stage] = DXExecutable._inst_type_to_sys_reqs(value)
+                run_input['stageSystemRequirements'][stage] = instance_type_to_sys_reqs(value)
 
         if kwargs.get('stage_folders') is not None:
             run_input['stageFolders'] = {}
@@ -459,12 +487,6 @@ class DXWorkflow(DXDataObject, DXExecutable):
             ]
 
         return run_input
-
-    def _get_required_keys(self):
-        return _workflow_required_keys
-
-    def _get_stage_keys(self):
-        return _workflow_stage_keys
 
     def _run_impl(self, run_input, **kwargs):
         return DXAnalysis(dxpy.api.workflow_run(self._dxid, run_input, **kwargs)["id"])
@@ -498,9 +520,10 @@ class DXWorkflow(DXDataObject, DXExecutable):
         * "stageID.name" where *stageID* is the stage ID, and *name*
           is the name of the input within the stage
 
-        * "name" where *name* is the name of an input that has been
-          exported for the workflow (this name will appear as a key in
-          the "inputSpec" of this workflow's description if it has
+        * "name" where *name* is the name of a workflow level input
+          (defined in inputs) or the name that has been
+          exported for the workflow (this name will appear as a key
+          in the "inputSpec" of this workflow's description if it has
           been exported for this purpose)
 
         '''

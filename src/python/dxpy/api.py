@@ -204,6 +204,15 @@ def app_run(app_name_or_id, alias=None, input_params={}, always_retry=True, **kw
     fully_qualified_version = app_name_or_id + (('/' + alias) if alias else '')
     return DXHTTPRequest('/%s/run' % fully_qualified_version, input_params_cp, always_retry=always_retry, **kwargs)
 
+def app_validate_batch(app_name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /app-xxxx/validateBatch API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Apps#API-method:-/app-xxxx%5B/yyyy%5D/validateBatch
+    """
+    fully_qualified_version = app_name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/validateBatch' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
 def app_uninstall(app_name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
     """
     Invokes the /app-xxxx/uninstall API method.
@@ -286,6 +295,14 @@ def applet_rename(object_id, input_params={}, always_retry=True, **kwargs):
     For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Name#API-method%3A-%2Fclass-xxxx%2Frename
     """
     return DXHTTPRequest('/%s/rename' % object_id, input_params, always_retry=always_retry, **kwargs)
+
+def applet_validate_batch(object_id, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /applet-xxxx/validateBatch API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Applets-and-Entry-Points#API-method%3A-%2Fapplet-xxxx%2FvalidateBatch
+    """
+    return DXHTTPRequest('/%s/validateBatch' % object_id, input_params, always_retry=always_retry, **kwargs)
 
 def applet_run(object_id, input_params={}, always_retry=True, **kwargs):
     """
@@ -382,6 +399,98 @@ def container_rename_folder(object_id, input_params={}, always_retry=False, **kw
     For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Folders-and-Deletion#API-method%3A-%2Fclass-xxxx%2FrenameFolder
     """
     return DXHTTPRequest('/%s/renameFolder' % object_id, input_params, always_retry=always_retry, **kwargs)
+
+def database_add_tags(object_id, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /database-xxxx/addTags API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Tags#API-method%3A-%2Fclass-xxxx%2FaddTags
+    """
+    return DXHTTPRequest('/%s/addTags' % object_id, input_params, always_retry=always_retry, **kwargs)
+
+def database_add_types(object_id, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /database-xxxx/addTypes API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Types#API-method%3A-%2Fclass-xxxx%2FaddTypes
+    """
+    return DXHTTPRequest('/%s/addTypes' % object_id, input_params, always_retry=always_retry, **kwargs)
+
+def database_describe(object_id, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /database-xxxx/describe API method.
+    """
+    return DXHTTPRequest('/%s/describe' % object_id, input_params, always_retry=always_retry, **kwargs)
+
+def database_get_details(object_id, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /database-xxxx/getDetails API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Details-and-Links#API-method%3A-%2Fclass-xxxx%2FgetDetails
+    """
+    return DXHTTPRequest('/%s/getDetails' % object_id, input_params, always_retry=always_retry, **kwargs)
+
+def database_list_projects(object_id, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /database-xxxx/listProjects API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Cloning#API-method%3A-%2Fclass-xxxx%2FlistProjects
+    """
+    return DXHTTPRequest('/%s/listProjects' % object_id, input_params, always_retry=always_retry, **kwargs)
+
+def database_relocate(object_id, input_params={}, always_retry=False, **kwargs):
+    """
+    Invokes the /database-xxxx/relocate API method.
+    """
+    return DXHTTPRequest('/%s/relocate' % object_id, input_params, always_retry=always_retry, **kwargs)
+
+def database_remove_tags(object_id, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /database-xxxx/removeTags API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Tags#API-method%3A-%2Fclass-xxxx%2FremoveTags
+    """
+    return DXHTTPRequest('/%s/removeTags' % object_id, input_params, always_retry=always_retry, **kwargs)
+
+def database_remove_types(object_id, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /database-xxxx/removeTypes API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Types#API-method%3A-%2Fclass-xxxx%2FremoveTypes
+    """
+    return DXHTTPRequest('/%s/removeTypes' % object_id, input_params, always_retry=always_retry, **kwargs)
+
+def database_rename(object_id, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /database-xxxx/rename API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Name#API-method%3A-%2Fclass-xxxx%2Frename
+    """
+    return DXHTTPRequest('/%s/rename' % object_id, input_params, always_retry=always_retry, **kwargs)
+
+def database_set_details(object_id, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /database-xxxx/setDetails API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Details-and-Links#API-method%3A-%2Fclass-xxxx%2FsetDetails
+    """
+    return DXHTTPRequest('/%s/setDetails' % object_id, input_params, always_retry=always_retry, **kwargs)
+
+def database_set_properties(object_id, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /database-xxxx/setProperties API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Properties#API-method%3A-%2Fclass-xxxx%2FsetProperties
+    """
+    return DXHTTPRequest('/%s/setProperties' % object_id, input_params, always_retry=always_retry, **kwargs)
+
+def database_set_visibility(object_id, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /database-xxxx/setVisibility API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Visibility#API-method%3A-%2Fclass-xxxx%2FsetVisibility
+    """
+    return DXHTTPRequest('/%s/setVisibility' % object_id, input_params, always_retry=always_retry, **kwargs)
 
 def file_add_tags(object_id, input_params={}, always_retry=True, **kwargs):
     """
@@ -503,6 +612,160 @@ def file_new(input_params={}, always_retry=True, **kwargs):
     """
     input_params_cp = Nonce.update_nonce(input_params)
     return DXHTTPRequest('/file/new', input_params_cp, always_retry=always_retry, **kwargs)
+
+def global_workflow_add_authorized_users(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/addAuthorizedUsers API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/addAuthorizedUsers
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/addAuthorizedUsers' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_add_categories(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/addCategories API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/addCategories
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/addCategories' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_add_developers(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/addDevelopers API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/addDevelopers
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/addDevelopers' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_add_tags(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/addTags API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/addTags
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/addTags' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_delete(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/delete API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/delete
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/delete' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_describe(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/describe API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/describe
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/describe' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_list_authorized_users(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/listAuthorizedUsers API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/listAuthorizedUsers
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/listAuthorizedUsers' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_list_categories(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/listCategories API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/listCategories
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/listCategories' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_list_developers(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/listDevelopers API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/listDevelopers
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/listDevelopers' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_publish(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/publish API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/publish
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/publish' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_remove_authorized_users(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/removeAuthorizedUsers API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/removeAuthorizedUsers
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/removeAuthorizedUsers' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_remove_categories(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/removeCategories API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/removeCategories
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/removeCategories' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_remove_developers(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/removeDevelopers API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/removeDevelopers
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/removeDevelopers' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_remove_tags(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/removeTags API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/removeTags
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/removeTags' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_run(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/run API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/run
+    """
+    input_params_cp = Nonce.update_nonce(input_params)
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/run' % fully_qualified_version, input_params_cp, always_retry=always_retry, **kwargs)
+
+def global_workflow_update(name_or_id, alias=None, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow-xxxx/update API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow-xxxx%5B/yyyy%5D/update
+    """
+    fully_qualified_version = name_or_id + (('/' + alias) if alias else '')
+    return DXHTTPRequest('/%s/update' % fully_qualified_version, input_params, always_retry=always_retry, **kwargs)
+
+def global_workflow_new(input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /globalworkflow/new API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Global-Workflows#API-method:-/globalworkflow/new
+    """
+    input_params_cp = Nonce.update_nonce(input_params)
+    return DXHTTPRequest('/globalworkflow/new', input_params_cp, always_retry=always_retry, **kwargs)
 
 def gtable_add_rows(object_id, input_params={}, always_retry=True, **kwargs):
     """
@@ -1077,6 +1340,12 @@ def system_find_data_objects(input_params={}, always_retry=True, **kwargs):
     """
     return DXHTTPRequest('/system/findDataObjects', input_params, always_retry=always_retry, **kwargs)
 
+def system_find_global_workflows(input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /system/findGlobalWorkflows API method.
+    """
+    return DXHTTPRequest('/system/findGlobalWorkflows', input_params, always_retry=always_retry, **kwargs)
+
 def system_resolve_data_objects(input_params={}, always_retry=True, **kwargs):
     """
     Invokes the /system/resolveDataObjects API method.
@@ -1100,6 +1369,12 @@ def system_find_analyses(input_params={}, always_retry=True, **kwargs):
     For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Search#API-method%3A-%2Fsystem%2FfindAnalyses
     """
     return DXHTTPRequest('/system/findAnalyses', input_params, always_retry=always_retry, **kwargs)
+
+def system_find_databases(input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /system/findDatabases API method.
+    """
+    return DXHTTPRequest('/system/findDatabases', input_params, always_retry=always_retry, **kwargs)
 
 def system_find_jobs(input_params={}, always_retry=True, **kwargs):
     """
@@ -1140,6 +1415,14 @@ def system_find_orgs(input_params={}, always_retry=True, **kwargs):
     For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Search#API-method:-/system/findOrgs
     """
     return DXHTTPRequest('/system/findOrgs', input_params, always_retry=always_retry, **kwargs)
+
+def system_generate_batch_inputs(input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /system/generateBatchInputs API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Search#API-method:-/system/generateBatchInputs
+    """
+    return DXHTTPRequest('/system/generateBatchInputs', input_params, always_retry=always_retry, **kwargs)
 
 def system_global_search(input_params={}, always_retry=True, **kwargs):
     """
@@ -1317,6 +1600,14 @@ def workflow_run(object_id, input_params={}, always_retry=True, **kwargs):
     """
     input_params_cp = Nonce.update_nonce(input_params)
     return DXHTTPRequest('/%s/run' % object_id, input_params_cp, always_retry=always_retry, **kwargs)
+
+def workflow_validate_batch(object_id, input_params={}, always_retry=True, **kwargs):
+    """
+    Invokes the /workflow-xxxx/validateBatch API method.
+
+    For more info, see: https://wiki.dnanexus.com/API-Specification-v1.0.0/Workflows-and-Analyses#API-method%3A-%2Fworkflow-xxxx%2FvalidateBatch
+    """
+    return DXHTTPRequest('/%s/validateBatch' % object_id, input_params, always_retry=always_retry, **kwargs)
 
 def workflow_set_details(object_id, input_params={}, always_retry=True, **kwargs):
     """

@@ -55,6 +55,7 @@ def new_workflow(args):
         except:
             # But if not, just use the value directly
             pass
+
     try:
         dxworkflow = dxpy.new_dxworkflow(title=args.title, summary=args.summary,
                                          description=args.description,
@@ -62,8 +63,7 @@ def new_workflow(args):
                                          project=project, name=name,
                                          tags=args.tags, types=args.types,
                                          hidden=args.hidden, properties=args.properties,
-                                         details=args.details,
-                                         folder=folder,
+                                         details=args.details, folder=folder,
                                          parents=args.parents, init_from=init_from)
         if args.brief:
             print(dxworkflow.get_id())
@@ -118,6 +118,7 @@ def add_stage(args):
     stage_id = try_call(dxworkflow.add_stage,
                         exec_handler,
                         name=args.name,
+                        stage_id=args.stage_id,
                         folder=folderpath,
                         stage_input=exec_inputs.inputs,
                         instance_type=args.instance_type)

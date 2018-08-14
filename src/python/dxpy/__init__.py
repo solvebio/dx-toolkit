@@ -137,6 +137,7 @@ import mmap
 import requests
 import socket
 import threading
+import subprocess
 
 from collections import namedtuple
 
@@ -243,6 +244,15 @@ def _get_proxy_info(url):
 
     return proxy_info
 
+def _get_env_var_proxy(print_proxy=False):
+  proxy_tuple = ('http_proxy', 'HTTP_PROXY', 'https_proxy', 'HTTPS_PROXY')
+  proxy = None
+  for env_proxy in proxy_tuple:
+    if env_proxy in os.environ:
+      proxy = os.environ[env_proxy]
+  if print_proxy:
+    print('Using env variable %s=%s as proxy' % (env_proxy,proxy))
+  return proxy
 
 def _get_pool_manager(verify, cert_file, key_file):
     global _pool_manager
@@ -254,8 +264,8 @@ def _get_pool_manager(verify, cert_file, key_file):
     if cert_file is None and verify is None and 'DX_CA_CERT' not in os.environ:
         with _pool_mutex:
             if _pool_manager is None:
-                if 'HTTPS_PROXY' in os.environ:
-                    proxy_params = _get_proxy_info(os.environ['HTTPS_PROXY'])
+                if _get_env_var_proxy():
+                    proxy_params = _get_proxy_info(_get_env_var_proxy(print_proxy=True))
                     default_pool_args.update(proxy_params)
                     _pool_manager = urllib3.ProxyManager(**default_pool_args)
                 else:
@@ -271,8 +281,8 @@ def _get_pool_manager(verify, cert_file, key_file):
         if verify is False or os.environ.get('DX_CA_CERT') == 'NOVERIFY':
             pool_args.update(cert_reqs=ssl.CERT_NONE, ca_certs=None)
             urllib3.disable_warnings()
-        if 'HTTPS_PROXY' in os.environ:
-            proxy_params = _get_proxy_info(os.environ['HTTPS_PROXY'])
+        if _get_env_var_proxy():
+            proxy_params = _get_proxy_info(_get_env_var_proxy(print_proxy=True))
             pool_args.update(proxy_params)
             return urllib3.ProxyManager(**pool_args)
         else:
@@ -322,6 +332,8 @@ def _is_retryable_exception(e):
     if isinstance(e, (socket.gaierror, socket.herror)):
         return True
     if isinstance(e, socket.error) and e.errno in _RETRYABLE_SOCKET_ERRORS:
+        return True
+    if isinstance(e, urllib3.exceptions.NewConnectionError):
         return True
     return False
 
@@ -450,6 +462,19 @@ def _debug_print_response(debug_level, seq_num, time_started, req_id, response_s
               WHITE(BOLD("(%dms)" % t)),
               content_to_print,
               file=sys.stderr)
+
+
+def _test_tls_version():
+    tls12_check_script = os.path.join(os.getenv("DNANEXUS_HOME"), "build", "tls12check.py")
+    if not os.path.exists(tls12_check_script):
+        return
+
+    try:
+        subprocess.check_output(['python', tls12_check_script])
+    except subprocess.CalledProcessError as e:
+        if e.returncode == 1:
+            print (e.output)
+            raise exceptions.InvalidTLSProtocol
 
 
 def DXHTTPRequest(resource, data, method='POST', headers=None, auth=True,
@@ -715,6 +740,10 @@ def DXHTTPRequest(resource, data, method='POST', headers=None, auth=True,
                                         "Request Time=%f Request ID=%s", exception_msg, time_started, req_id)
                         ok_to_retry = True
 
+                    # Unprocessable entity, request has semantical errors
+                    if response is not None and response.status == 422:
+                        ok_to_retry = False
+
                 if ok_to_retry:
                     if rewind_input_buffer_offset is not None:
                         data.seek(rewind_input_buffer_offset)
@@ -740,6 +769,12 @@ def DXHTTPRequest(resource, data, method='POST', headers=None, auth=True,
             # retryable. Print the latest error and propagate it back to the caller.
             if not isinstance(e, exceptions.DXAPIError):
                 logger.error("[%s] %s %s: %s.", time.ctime(), method, _url, exception_msg)
+
+            if isinstance(e, urllib3.exceptions.ProtocolError) and \
+                'Connection reset by peer' in exception_msg:
+                # If the protocol error is 'connection reset by peer', most likely it is an
+                # error in the ssl handshake due to unsupported TLS protocol.
+                _test_tls_version()
 
             # Retries have been exhausted, and we are unable to get a full
             # buffer from the data source. Raise a special exception.
@@ -942,6 +977,23 @@ def _set_retry_response(response):
 
 def _get_retry_response():
     return _retry_response
+
+def append_underlying_workflow_describe(globalworkflow_desc):
+    """
+    Adds the "workflowDescribe" field to the config for each region of
+    the global workflow. The value is the description of an underlying
+    workflow in that region.
+    """
+    if not globalworkflow_desc or \
+            globalworkflow_desc['class'] != 'globalworkflow' or \
+            not 'regionalOptions' in globalworkflow_desc:
+        return globalworkflow_desc
+
+    for region, config in globalworkflow_desc['regionalOptions'].items():
+        workflow_id = config['workflow']
+        workflow_desc = dxpy.api.workflow_describe(workflow_id)
+        globalworkflow_desc['regionalOptions'][region]['workflowDescribe'] = workflow_desc
+    return globalworkflow_desc
 
 
 from .utils.config import DXConfig as _DXConfig

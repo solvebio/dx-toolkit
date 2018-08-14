@@ -61,30 +61,38 @@ def _write_simple_file(filename, content):
         f.write(content)
 
 
-def _dump_workflow(workflow_obj, describe_output=[]):
+def _dump_workflow(workflow_obj, describe_output={}):
+    dxworkflow_json_keys = ['name', 'title', 'summary', 'dxapi', 'version',
+                            'outputFolder']
+    dxworkflow_json_stage_keys = ['id', 'name', 'executable', 'folder', 'input',
+                                  'executionPolicy', 'systemRequirements']
+
     dxworkflow_json = collections.OrderedDict()
-    for key in workflow_obj._get_required_keys():
-        if key in describe_output:
+    for key in dxworkflow_json_keys:
+        if key in describe_output and describe_output[key]:
             dxworkflow_json[key] = describe_output[key]
 
-    stages = describe_output["stages"]
+    for key in ('inputs', 'outputs'):
+        if key in describe_output and describe_output[key] is not None:
+            dxworkflow_json[key] = describe_output[key]
+    stages = describe_output.get("stages", ())
     new_stages = []
     for stage in stages:
         new_stage = collections.OrderedDict()
-        for key in workflow_obj._get_stage_keys():
+        for key in dxworkflow_json_stage_keys:
             if key in stage and stage[key]:
                 new_stage[key] = stage[key]
         new_stages.append(new_stage)
     dxworkflow_json["stages"] = new_stages
 
-    # Write dxworkflow.json and Readme.md
+    # Create dxworkflow.json, Readme.md files
     _write_json_file("dxworkflow.json", dxworkflow_json)
     readme = describe_output.get("description", "")
     if readme:
         _write_simple_file("Readme.md", readme)
 
 
-def _dump_app_or_applet(executable, omit_resources=False, describe_output=[]):
+def _dump_app_or_applet(executable, omit_resources=False, describe_output={}):
     info = executable.get()
 
     if info["runSpec"]["interpreter"] == "bash":
@@ -101,6 +109,16 @@ def _dump_app_or_applet(executable, omit_resources=False, describe_output=[]):
     os.mkdir("src")
     with open(script, "w") as f:
         f.write(info["runSpec"]["code"])
+
+    def make_cluster_bootstrap_script_file(region, entry_point, code, suffix):
+        """
+        Writes the string `code` into a file at the relative path
+        "src/<region>_<entry_point>_clusterBootstrap.<suffix>"
+        """
+        script_name = "src/%s_%s_clusterBootstrap.%s" % (region, entry_point, suffix)
+        with open(script_name, "w") as f:
+            f.write(code)
+        return script_name
 
     # Get all the asset bundles
     asset_depends = []
@@ -222,7 +240,7 @@ def _dump_app_or_applet(executable, omit_resources=False, describe_output=[]):
 
     # Remove dx-toolkit from execDepends
     dx_toolkit = {"name": "dx-toolkit", "package_manager": "apt"}
-    if dx_toolkit in dxapp_json["runSpec"]["execDepends"]:
+    if dx_toolkit in dxapp_json["runSpec"].get("execDepends", ()):
         dxapp_json["runSpec"]["execDepends"].remove(dx_toolkit)
 
     # Remove "bundledDependsByRegion" field from "runSpec". This utility
@@ -231,17 +249,38 @@ def _dump_app_or_applet(executable, omit_resources=False, describe_output=[]):
     # "bundledDependsByRegion".
     dxapp_json["runSpec"].pop("bundledDependsByRegion", None)
 
-    # For an app, "dx build" parses the "regionalOptions" key from
-    # dxapp.json into the "regionalOptions" field in the body of the
-    # /app/new (or /app-x/update) request. "dx get" should parse the
-    # "regionalOptions" field from the response of /app-x/get into the
-    # "regionalOptions" key in dxapp.json.
-    if "regionalOptions" in dxapp_json:
-        for region in dxapp_json["regionalOptions"]:
-            applet_handler = get_handler(dxapp_json["regionalOptions"][region]["applet"])
-            system_requirements = applet_handler.describe()["runSpec"]["systemRequirements"]
+    # "dx build" parses the "regionalOptions" key from dxapp.json into the
+    # "runSpec.systemRequirements" field of applet/new.
+    # "dx get" should parse the "systemRequirementsByRegion" field from
+    # the response of /app-x/get or /applet-x/get into the "regionalOptions"
+    # key in dxapp.json.
+    if "systemRequirementsByRegion" in dxapp_json['runSpec']:
+        dxapp_json["regionalOptions"] = {}
+        for region in dxapp_json['runSpec']["systemRequirementsByRegion"]:
+            region_sys_reqs = dxapp_json['runSpec']['systemRequirementsByRegion'][region]
 
-            dxapp_json["regionalOptions"][region] = dict(systemRequirements=system_requirements)
+            # handle cluster bootstrap scripts if any are present
+            for entry_point in region_sys_reqs:
+                try:
+                    bootstrap_script = region_sys_reqs[entry_point]['clusterSpec']['bootstrapScript']
+                    filename = make_cluster_bootstrap_script_file(region,
+                                                                  entry_point,
+                                                                  bootstrap_script,
+                                                                  suffix)
+                    region_sys_reqs[entry_point]['clusterSpec']['bootstrapScript'] = filename
+                except KeyError:
+                    # either no "clusterSpec" or no "bootstrapScript" within "clusterSpec"
+                    continue
+
+            dxapp_json["regionalOptions"][region] = \
+                dict(systemRequirements=region_sys_reqs)
+
+    # systemRequirementsByRegion data is stored in regionalOptions,
+    # systemRequirements is ignored
+    if 'systemRequirementsByRegion' in dxapp_json["runSpec"]:
+        del dxapp_json["runSpec"]["systemRequirementsByRegion"]
+    if 'systemRequirements' in dxapp_json["runSpec"]:
+        del dxapp_json["runSpec"]["systemRequirements"]
 
     # Cleanup of empty elements. Be careful not to let this step
     # introduce any semantic changes to the app specification. For
@@ -265,8 +304,7 @@ def _dump_app_or_applet(executable, omit_resources=False, describe_output=[]):
     if devnotes:
         _write_simple_file("Readme.developer.md", devnotes)
 
-
-def dump_executable(executable, destination_directory, omit_resources=False, describe_output=[]):
+def dump_executable(executable, destination_directory, omit_resources=False, describe_output={}):
     """
     Reconstitutes an app, applet, or a workflow into a directory that would
     create a functionally identical executable if "dx build" were run on it.
@@ -274,7 +312,7 @@ def dump_executable(executable, destination_directory, omit_resources=False, des
     executable.
 
     :param executable: executable, i.e. app, applet, or workflow, to be dumped
-    :type executable: DXExecutable (only DXApp, DXApplet or DXWorkflow now)
+    :type executable: DXExecutable (either of: DXApp, DXApplet, DXWorkflow, DXGlobalWorkflow)
     :param destination_directory: an existing, empty, and writable directory
     :type destination_directory: str
     :param omit_resources: if True, executable's resources will not be downloaded
@@ -286,6 +324,24 @@ def dump_executable(executable, destination_directory, omit_resources=False, des
         old_cwd = os.getcwd()
         os.chdir(destination_directory)
         if isinstance(executable, dxpy.DXWorkflow):
+            _dump_workflow(executable, describe_output)
+        elif isinstance(executable, dxpy.DXGlobalWorkflow):
+            # Add inputs, outputs, stages. These fields contain region-specific values
+            # e.g. files or applets, that's why:
+            # * if the workflow is global, we will unpack the underlying workflow
+            #   from the region of the current project context
+            # * if this is a regular, project-based workflow, we will just use
+            #   its description (the describe_output that we already have)
+            # Underlying workflows are workflows stored in resource containers
+            # of the global workflow (one per each region the global workflow is
+            # enabled in). #TODO: add a link to documentation.
+            current_project = dxpy.WORKSPACE_ID
+            if not current_project:
+                raise DXError(
+                    'A project needs to be selected to "dx get" a global workflow. You can use "dx select" to select a project')
+            region = dxpy.api.project_describe(current_project,
+                                               input_params={"fields": {"region": True}})["region"]
+            describe_output = executable.append_underlying_workflow_desc(describe_output, region)
             _dump_workflow(executable, describe_output)
         else:
             _dump_app_or_applet(executable, omit_resources, describe_output)

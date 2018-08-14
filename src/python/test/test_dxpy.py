@@ -24,6 +24,7 @@ import shutil
 import string
 import subprocess
 import platform
+import pytest
 import re
 
 import requests
@@ -130,6 +131,7 @@ class TestDXProject(unittest.TestCase):
             self.assertEqual(desc["description"], "")
             self.assertEqual(desc["protected"], False)
             self.assertEqual(desc["restricted"], False)
+            self.assertEqual(desc["downloadRestricted"], False)
             self.assertEqual(desc["containsPHI"], False)
             self.assertEqual(desc["tags"], [])
             prop = dxpy.api.project_describe(dxproject.get_id(),
@@ -138,6 +140,7 @@ class TestDXProject(unittest.TestCase):
             modified_proj_id = dxproject.new(name="newprojname2",
                                              protected=True,
                                              restricted=True,
+                                             download_restricted=True,
                                              description="new description",
                                              properties={"prop1": "val1"},
                                              tags=["tag1", "tag2", "tag3"])
@@ -147,8 +150,9 @@ class TestDXProject(unittest.TestCase):
                 self.assertNotEqual(desc2["id"], desc["id"])
                 self.assertEqual(desc2["id"], modified_proj_id)
                 self.assertEqual(desc2["name"], "newprojname2")
-                self.assertEqual(desc2["restricted"], True)
                 self.assertEqual(desc2["protected"], True)
+                self.assertEqual(desc2["restricted"], True)
+                self.assertEqual(desc2["downloadRestricted"], True)
                 self.assertEqual(desc2["description"], "new description")
                 self.assertEqual(desc2["tags"], ["tag1", "tag2", "tag3"])
                 prop2 = dxpy.api.project_describe(dxproject.get_id(),
@@ -177,18 +181,25 @@ class TestDXProject(unittest.TestCase):
 
     def test_update_describe(self):
         dxproject = dxpy.DXProject()
-        dxproject.update(name="newprojname", protected=True, restricted=True, description="new description")
+        dxproject.update(name="newprojname",
+                         protected=True,
+                         restricted=True,
+                         download_restricted=True,
+                         description="new description")
         desc = dxproject.describe()
         self.assertEqual(desc["id"], self.proj_id)
         self.assertEqual(desc["class"], "project")
         self.assertEqual(desc["name"], "newprojname")
         self.assertEqual(desc["protected"], True)
         self.assertEqual(desc["restricted"], True)
+        self.assertEqual(desc["downloadRestricted"], True)
         self.assertEqual(desc["description"], "new description")
         self.assertTrue("created" in desc)
-        dxproject.update(restricted=False)
+
+        dxproject.update(restricted=False, download_restricted=False)
         desc = dxproject.describe()
         self.assertEqual(desc["restricted"], False)
+        self.assertEqual(desc["downloadRestricted"], False)
 
     def test_new_list_remove_folders(self):
         dxproject = dxpy.DXProject()
@@ -665,6 +676,8 @@ class TestDXFile(unittest.TestCase):
         dxfile.write("Haha")
         # No assertion here, but this should print an error
 
+    @pytest.mark.TRACEABILITY_MATRIX
+    @testutil.update_traceability_matrix(["DNA_API_DATA_OBJ_GENERATE_DOWNLOAD_URL"])
     def test_download_url_helper(self):
         dxfile = dxpy.upload_string(self.foo_str, wait_on_close=True)
         opts = {"preauthenticated": True, "filename": "foo"}
@@ -962,6 +975,8 @@ class TestDXRecord(unittest.TestCase):
         self.assertEqual(first_desc["tags"], second_desc["tags"])
         self.assertFalse(first_desc["types"] == second_desc["types"])
 
+    @pytest.mark.TRACEABILITY_MATRIX
+    @testutil.update_traceability_matrix(["DNA_API_DATA_OBJ_VIEW_DATA_OF_RECORD"])
     def test_describe_dxrecord(self):
         dxrecord = dxpy.new_dxrecord()
         desc = dxrecord.describe()
@@ -1205,6 +1220,7 @@ def main():
     pass
 ''',
                               "interpreter": "python2.7",
+                              "distribution": "Ubuntu", "release": "14.04",
                               "execDepends": [{"name": "python-numpy"}]})
         dxrecord = dxpy.new_dxrecord()
         dxrecord.close()
@@ -1263,6 +1279,12 @@ def main():
 
 class TestDXWorkflow(unittest.TestCase):
     default_inst_type = "mem2_hdd2_x2"
+    codeSpec = '''
+@dxpy.entry_point('main')
+def main(number):
+    raise # Ensure that the applet fails
+'''
+
     def setUp(self):
         setUpTempProjects(self)
 
@@ -1285,8 +1307,7 @@ class TestDXWorkflow(unittest.TestCase):
                 dxanalysis = dxpy.DXAnalysis()
                 dxanalysis.set_id(bad_value)
 
-    @unittest.skipUnless(testutil.TEST_RUN_JOBS,
-                         'skipping test that would run a job')
+    @unittest.skipUnless(testutil.TEST_RUN_JOBS, 'skipping test that would run a job')
     def test_run_workflow_and_analysis_metadata(self):
         dxworkflow = dxpy.DXWorkflow(dxpy.api.workflow_new({"project": self.proj_id,
                                                             "outputFolder": "/output"})['id'])
@@ -1296,12 +1317,9 @@ class TestDXWorkflow(unittest.TestCase):
                      inputSpec=[{"name": "number", "class": "int"},
                                 {"name": "othernumber", "class": "int"}],
                      outputSpec=[{"name": "number", "class": "int"}],
-                     runSpec={"code": '''
-@dxpy.entry_point('main')
-def main(number):
-    raise # Ensure that the applet fails
-''',
-                               "interpreter": "python2.7"})
+                     runSpec={"code": self.codeSpec,
+                              "distribution": "Ubuntu", "release": "14.04",
+                              "interpreter": "python2.7"})
         stage_id = dxpy.api.workflow_add_stage(dxworkflow.get_id(),
                                                {"editVersion": 0,
                                                 "name": "stagename",
@@ -1331,6 +1349,45 @@ def main(number):
         self.assertEqual(analysis_desc["properties"], {"foo": "bar"})
 
     @unittest.skipUnless(testutil.TEST_RUN_JOBS, 'skipping test that would run a job')
+    def test_run_workflow_with_explicit_input(self):
+        dxapplet = dxpy.DXApplet()
+        dxapplet.new(name="test_applet",
+                     dxapi="1.04",
+                     inputSpec=[{"name": "number", "class": "int"}],
+                     outputSpec=[{"name": "number", "class": "int"}],
+                     runSpec={"code": self.codeSpec, "interpreter": "python2.7",
+                              "distribution": "Ubuntu", "release": "14.04"})
+
+        stage0 = {'id': 'stage_0', 'executable': dxapplet.get_id(),
+                  'input': {'number': {'$dnanexus_link': {'workflowInputField': 'foo'}}}}
+        dxworkflow = dxpy.new_dxworkflow(stages=[stage0],
+                                         workflow_inputs=[{'name': 'foo', 'class': 'int'}])
+
+        # run open workflow
+        dxanalysis = dxworkflow.run({'foo': 101})
+        dxanalysis.terminate()
+        with self.assertRaises(DXJobFailureError):
+            dxanalysis.wait_on_done(timeout=20)
+        analysis_desc = dxanalysis.describe()
+        self.assertEqual(analysis_desc['input'].get('stage_0.number'), 101)
+        dxjob = dxpy.DXJob(analysis_desc['stages'][0]['execution']['id'])
+        self.assertEqual(dxjob.describe()['input'].get('number'), 101)
+
+        # run closed workflow (the workflow has inputs so input values
+        # can only be passed via workflow-level input (can't be passed to stage-level inputs))
+        dxworkflow.close()
+        self.assertRaisesRegexp(DXError, 'is private and cannot be overridden',
+                                dxworkflow.run, {'stage_0.number': 1})
+        dxanalysis = dxworkflow.run({'foo': 202})
+        dxanalysis.terminate()
+        with self.assertRaises(DXJobFailureError):
+            dxanalysis.wait_on_done(timeout=20)
+        analysis_desc = dxanalysis.describe()
+        self.assertEqual(analysis_desc['input'].get('stage_0.number'), 202)
+        dxjob = dxpy.DXJob(analysis_desc['stages'][0]['execution']['id'])
+        self.assertEqual(dxjob.describe()['input'].get('number'), 202)
+
+    @unittest.skipUnless(testutil.TEST_RUN_JOBS, 'skipping test that would run a job')
     def test_run_workflow_with_instance_type(self):
         dxworkflow = dxpy.DXWorkflow(dxpy.api.workflow_new({"project": self.proj_id})['id'])
         dxapplet = dxpy.DXApplet()
@@ -1339,6 +1396,7 @@ def main(number):
                      inputSpec=[],
                      outputSpec=[],
                      runSpec={"code": '',
+                              "distribution": "Ubuntu", "release": "14.04",
                               "interpreter": "bash"})
         stage_id = dxpy.api.workflow_add_stage(dxworkflow.get_id(),
                                                {"editVersion": 0,
@@ -1380,7 +1438,8 @@ def main(number):
                      dxapi="1.04",
                      inputSpec=[],
                      outputSpec=[],
-                     runSpec={"code": '', "interpreter": "bash"})
+                     runSpec={"code": '', "interpreter": "bash",
+                              "distribution": "Ubuntu", "release": "14.04"})
         dxworkflow.add_stage(dxapplet, name="stagename", folder="foo")
         second_stage_id = dxworkflow.add_stage(dxapplet, name="otherstagename", folder="/myoutput")
 
@@ -1420,7 +1479,7 @@ def main(number):
                      dxapi="1.04",
                      inputSpec=[],
                      outputSpec=[],
-                     runSpec={"code": '', "interpreter": "bash"})
+                     runSpec={"code": '', "interpreter": "bash", "distribution": "Ubuntu", "release": "14.04"})
         stage_id = dxworkflow.add_stage(dxapplet, name="stagename", folder="foo")
 
         # make initial analysis
@@ -1446,12 +1505,9 @@ def main(number):
                      dxapi="1.04",
                      inputSpec=[{"name": "number", "class": "int"}],
                      outputSpec=[{"name": "number", "class": "int"}],
-                     runSpec={"code": '''
-@dxpy.entry_point('main')
-def main(number):
-    raise # Ensure that the applet fails
-''',
-                               "interpreter": "python2.7"})
+                     runSpec={"code": self.codeSpec,
+                              "interpreter": "python2.7",
+                              "distribution": "Ubuntu", "release": "14.04"})
         dxworkflow.add_stage(dxapplet, name='stagename')
 
         # Can't specify the same input more than once (with a
@@ -1459,10 +1515,11 @@ def main(number):
         self.assertRaisesRegexp(DXError, 'more than once',
                                 dxworkflow.run, {"0.number": 32, "stagename.number": 42})
         # Bad stage name
-        self.assertRaisesRegexp(DXError, 'nor found as a stage name',
+        self.assertRaisesRegexp(DXError, 'could not be found as a stage ID nor as a stage name',
                                 dxworkflow.run, {"nonexistentstage.number": 32})
 
     def test_new_dxworkflow(self):
+        # empty workflow
         blankworkflow = dxpy.new_dxworkflow()
         self.assertIsInstance(blankworkflow, dxpy.DXWorkflow)
         desc = blankworkflow.describe()
@@ -1470,15 +1527,62 @@ def main(number):
         self.assertEqual(desc['summary'], '')
         self.assertEqual(desc['description'], '')
         self.assertEqual(desc['outputFolder'], None)
+        self.assertEqual(desc['stages'], [])
+        self.assertEqual(desc['inputs'], None)
+        self.assertEqual(desc['outputs'], None)
 
-        dxworkflow = dxpy.new_dxworkflow(title='mytitle', summary='mysummary', description='mydescription', output_folder="/foo")
+        # workflow with metadata
+        dxapplet = dxpy.DXApplet()
+        dxapplet.new(name="test_applet",
+                     dxapi="1.04",
+                     inputSpec=[{'name': 'in', 'class': 'int'}],
+                     outputSpec=[],
+                     runSpec={"code": '', "interpreter": "bash",
+                              "distribution": "Ubuntu", "release": "14.04"})
+
+        wf_input = [{'name': 'foo', 'class': 'int'}]
+        wf_output = [{'name': 'bar', 'class': 'int',
+                      'outputSource': {'$dnanexus_link': {'stage': 'stage_0', 'outputField': 'in'}}}]
+        stage_to_wf_link = {'in': {'$dnanexus_link': {'workflowInputField': 'foo'}}}
+
+        stage0 = {'id': 'stage_0',
+                  'name': 'stage_0_name',
+                  'executable': dxapplet.get_id(),
+                  'folder': "/stage_0_output",
+                  'input': stage_to_wf_link,
+                  'executionPolicy': {'restartOn': {}, 'onNonRestartableFailure': 'failStage'},
+                  'systemRequirements': {'main': {'instanceType': self.default_inst_type}}}
+        stage1 = {'id': 'stage_1',
+                  'executable': dxapplet.get_id()}
+
+        dxworkflow = dxpy.new_dxworkflow(title='mytitle', summary='mysummary',
+                                         description='mydescription', output_folder="/foo",
+                                         stages=[stage0, stage1], workflow_inputs=wf_input,
+                                         workflow_outputs=wf_output)
+        stage_with_generated_id = dxworkflow.add_stage(dxapplet, name="stagename_generated_id", folder="foo")
+        stage_with_user_id = dxworkflow.add_stage(dxapplet, stage_id="my_id", name="stagename_user_id", folder="foo")
+
         self.assertIsInstance(dxworkflow, dxpy.DXWorkflow)
         desc = dxworkflow.describe()
         self.assertEqual(desc['title'], 'mytitle')
         self.assertEqual(desc['summary'], 'mysummary')
         self.assertEqual(desc['description'], 'mydescription')
         self.assertEqual(desc['outputFolder'], '/foo')
+        self.assertEqual(desc['inputs'], wf_input)
+        self.assertEqual(desc['outputs'], wf_output)
+        self.assertEqual(len(desc['stages']), 4)
+        self.assertEqual(desc['stages'][0]['id'], 'stage_0')
+        self.assertEqual(desc['stages'][0]['name'], 'stage_0_name')
+        self.assertEqual(desc['stages'][0]['input'], stage_to_wf_link)
+        self.assertEqual(desc['stages'][1]['id'], 'stage_1')
+        self.assertEqual(desc['stages'][1]['name'], None)
+        self.assertEqual(desc['stages'][2]['id'], stage_with_generated_id)
+        self.assertEqual(desc['stages'][2]['name'], 'stagename_generated_id')
+        self.assertEqual(desc['stages'][3]['id'], stage_with_user_id)
+        self.assertEqual(stage_with_user_id, 'my_id')
+        self.assertEqual(desc['stages'][3]['name'], 'stagename_user_id')
 
+        #initialize from
         secondworkflow = dxpy.new_dxworkflow(init_from=dxworkflow)
         self.assertIsInstance(secondworkflow, dxpy.DXWorkflow)
         self.assertNotEqual(dxworkflow.get_id(), secondworkflow.get_id())
@@ -1487,6 +1591,18 @@ def main(number):
         self.assertEqual(desc['summary'], 'mysummary')
         self.assertEqual(desc['description'], 'mydescription')
         self.assertEqual(desc['outputFolder'], '/foo')
+        self.assertEqual(desc['inputs'], wf_input)
+        self.assertEqual(desc['outputs'], wf_output)
+        self.assertEqual(len(desc['stages']), 4)
+        self.assertEqual(desc['stages'][0]['id'], 'stage_0')
+        self.assertEqual(desc['stages'][0]['name'], 'stage_0_name')
+        self.assertEqual(desc['stages'][1]['id'], 'stage_1')
+        self.assertEqual(desc['stages'][1]['name'], None)
+        self.assertEqual(desc['stages'][2]['id'], stage_with_generated_id)
+        self.assertEqual(desc['stages'][2]['name'], 'stagename_generated_id')
+        self.assertEqual(desc['stages'][3]['id'], stage_with_user_id)
+        self.assertEqual(stage_with_user_id, 'my_id')
+        self.assertEqual(desc['stages'][3]['name'], 'stagename_user_id')
 
     def test_add_move_remove_stages(self):
         dxworkflow = dxpy.new_dxworkflow()
@@ -1494,7 +1610,8 @@ def main(number):
         dxapplet.new(dxapi="1.0.0",
                      inputSpec=[{"name": "my_input", "class": "string"}],
                      outputSpec=[],
-                     runSpec={"code": "", "interpreter": "bash"})
+                     runSpec={"code": "", "interpreter": "bash",
+                              "distribution": "Ubuntu", "release": "14.04"})
         # Add stages
         first_stage = dxworkflow.add_stage(dxapplet, name='stagename', folder="/outputfolder",
                                            stage_input={"my_input": "hello world"},
@@ -1542,7 +1659,7 @@ def main(number):
         self.assertEqual(dxworkflow.editVersion, 5)
         self.assertEqual(len(dxworkflow.stages), 1)
         self.assertEqual(dxworkflow.stages[0]["id"], second_stage)
-        with self.assertRaises(DXAPIError):
+        with self.assertRaises(DXError):
             dxworkflow.remove_stage(first_stage) # should already have been removed
         removed_stage = dxworkflow.remove_stage(second_stage, edit_version=5)
         self.assertEqual(removed_stage, second_stage)
@@ -1559,7 +1676,8 @@ def main(number):
         dxapplet.new(dxapi="1.0.0",
                      inputSpec=[{"name": "my_input", "class": "string"}],
                      outputSpec=[],
-                     runSpec={"code": "", "interpreter": "bash"})
+                     runSpec={"code": "", "interpreter": "bash",
+                              "distribution": "Ubuntu", "release": "14.04"})
         # Add stages
         first_stage = dxworkflow.add_stage(dxapplet, name='stagename', folder="/outputfolder",
                                            stage_input={"my_input": "hello world"})
@@ -1594,11 +1712,16 @@ def main(number):
         self.assertEqual(dxworkflow.outputFolder, '/foo')
 
         # update title, summary, description, outputFolder by value
-        dxworkflow.update(title='Title', summary='Summary', description='Description', output_folder='/bar/baz')
+        wf_input = [{'name': 'foo', 'class': 'int'}]
+        wf_output = None
+        dxworkflow.update(title='Title', summary='Summary', description='Description', output_folder='/bar/baz',
+                          workflow_inputs=wf_input, workflow_outputs=wf_output)
         self.assertEqual(dxworkflow.editVersion, 1)
         for metadata in ['title', 'summary', 'description']:
             self.assertEqual(getattr(dxworkflow, metadata), metadata.capitalize())
         self.assertEqual(dxworkflow.outputFolder, '/bar/baz')
+        self.assertEqual(dxworkflow.inputs, wf_input)
+        self.assertEqual(dxworkflow.outputs, wf_output)
 
         # use unset_title
         dxworkflow.update(unset_title=True, edit_version=1)
@@ -1610,33 +1733,44 @@ def main(number):
         self.assertEqual(dxworkflow.editVersion, 3)
         self.assertIsNone(dxworkflow.outputFolder)
 
+        # use unset_workflow_inputs
+        dxworkflow.update(unset_workflow_inputs=True, edit_version=3)
+        self.assertEqual(dxworkflow.editVersion, 4)
+        # self.assertIsNone(dxworkflow.inputs)
+
+        # use unset_workflow_outputs
+        dxworkflow.update(unset_workflow_outputs=True, edit_version=4)
+        self.assertEqual(dxworkflow.editVersion, 5)
+        # self.assertIsNone(dxworkflow.outputs)
+
         # can't provide both title and unset_title=True
         with self.assertRaises(DXError):
             dxworkflow.update(title='newtitle', unset_title=True)
-        self.assertEqual(dxworkflow.editVersion, 3)
+        self.assertEqual(dxworkflow.editVersion, 5)
 
         dxapplet = dxpy.DXApplet()
         dxapplet.new(dxapi="1.0.0",
                      inputSpec=[{"name": "my_input", "class": "string"}],
                      outputSpec=[],
-                     runSpec={"code": "", "interpreter": "bash"})
+                     runSpec={"code": "", "interpreter": "bash",
+                              "distribution": "Ubuntu", "release": "14.04"})
         stage = dxworkflow.add_stage(dxapplet, name='stagename', folder="/outputfolder",
                                      stage_input={"my_input": "hello world"})
-        self.assertEqual(dxworkflow.editVersion, 4)
+        self.assertEqual(dxworkflow.editVersion, 6)
         self.assertEqual(dxworkflow.stages[0]["input"]["my_input"], "hello world")
 
         # test stage modifications using update method
         dxworkflow.update(summary='newsummary',
                           stages={stage: {"folder": "/newoutputfolder",
                                           "input": {"my_input": None}}})
-        self.assertEqual(dxworkflow.editVersion, 5)
+        self.assertEqual(dxworkflow.editVersion, 7)
         self.assertEqual(dxworkflow.summary, 'newsummary')
         self.assertEqual(dxworkflow.stages[0]["folder"], "/newoutputfolder")
         self.assertNotIn("my_input", dxworkflow.stages[0]["input"])
 
         # no-op update
         dxworkflow.update()
-        self.assertEqual(dxworkflow.editVersion, 5)
+        self.assertEqual(dxworkflow.editVersion, 7)
 
     def test_update_stage(self):
         dxworkflow = dxpy.new_dxworkflow()
@@ -1644,7 +1778,8 @@ def main(number):
         dxapplet.new(dxapi="1.0.0",
                      inputSpec=[{"name": "my_input", "class": "string"}],
                      outputSpec=[],
-                     runSpec={"code": "", "interpreter": "bash"})
+                     runSpec={"code": "", "interpreter": "bash",
+                              "distribution": "Ubuntu", "release": "14.04"})
         # Add a stage
         stage = dxworkflow.add_stage(dxapplet, name='stagename', folder="/outputfolder",
                                      stage_input={"my_input": "hello world"},
@@ -1688,7 +1823,8 @@ def main(number):
         second_applet.new(dxapi="1.0.0",
                           inputSpec=[{"name": "my_new_input", "class": "string"}],
                           outputSpec=[],
-                          runSpec={"code": "", "interpreter": "bash"})
+                          runSpec={"code": "", "interpreter": "bash",
+                                   "distribution": "Ubuntu", "release": "14.04"})
 
         # Incompatible executable
         try:
@@ -1750,6 +1886,7 @@ class TestDXApp(unittest.TestCase):
                      outputSpec=[{"name": "mappings", "class": "record"}],
                      runSpec={"code": "def main(): pass",
                               "interpreter": "python2.7",
+                              "distribution": "Ubuntu", "release": "14.04",
                               "execDepends": [{"name": "python-numpy"}]})
         dxapp = dxpy.DXApp()
         my_userid = dxpy.whoami()
@@ -1795,6 +1932,7 @@ class TestDXApp(unittest.TestCase):
                      outputSpec=[{"name": "mappings", "class": "record"}],
                      runSpec={"code": "def main(): pass",
                               "interpreter": "python2.7",
+                              "distribution": "Ubuntu", "release": "14.04",
                               "execDepends": [{"name": "python-numpy"}]})
         dxapp = dxpy.DXApp()
         my_userid = dxpy.whoami()
@@ -1827,6 +1965,75 @@ class TestDXApp(unittest.TestCase):
         with self.assertRaises(DXAPIError):
             dxpy.DXApp(name="test_add_and_remove_tags_app", alias="oink").applet
 
+@unittest.skipUnless(testutil.TEST_ISOLATED_ENV,
+                     'skipping test that would create a global workflow')
+class TestDXGlobalWorkflow(testutil.DXTestCaseBuildWorkflows):
+    def setUp(self):
+        setUpTempProjects(self)
+        super(TestDXGlobalWorkflow, self).setUp()
+
+    def tearDown(self):
+        tearDownTempProjects(self)
+        super(TestDXGlobalWorkflow, self).tearDown()
+
+    def test_init_and_set_id(self):
+        for good_values in [("globalworkflow-aB3456789012345678901234", None, None),
+                            (None, 'name', 'tag'),
+                            (None, 'name', None),
+                            (None, None, None)]:
+            dxgw = dxpy.DXGlobalWorkflow(*good_values)
+            dxgw.set_id(*good_values)
+        for bad_values in [("foo", None, None),
+                           ("globalworkflow-aB3456789012345678901234", 'name', None),
+                           ("globalworkflow-aB3456789012345678901234", None, 'tag'),
+                           ("globalworkflow-aB3456789012345678901234", 'name', 'tag'),
+                           ("project-123456789012345678901234", None, None),
+                           (3, None, None),
+                           ({}, None, None),
+                           ("globalworkflow-aB34567890123456789012345", None, None),
+                           ("globalworkflow-aB345678901234567890123", None, None),
+                           (None, 3, None),
+                           (None, 'name', {})]:
+            with self.assertRaises(DXError):
+                dxpy.DXGlobalWorkflow(*bad_values)
+            with self.assertRaises(DXError):
+                dxgw = dxpy.DXGlobalWorkflow()
+                dxgw.set_id(*bad_values)
+
+    def test_create_globalworkflow(self):
+        gw_spec = self.create_global_workflow_spec(self.proj_id, "gwf_name", "0.0.1")
+        dxgwf = dxpy.DXGlobalWorkflow()
+        dxgwf.new(**gw_spec)
+
+        desc = dxgwf.describe()
+        self.assertEqual(desc["name"], "gwf_name")
+        self.assertEqual(desc["version"], "0.0.1")
+        self.assertTrue("0.0.1" in desc["aliases"])
+        self.assertTrue("default" in desc["aliases"])
+        dxsamegwf = dxpy.DXGlobalWorkflow(name="gwf_name")
+        samegwfdesc = dxsamegwf.describe()
+        self.assertEqual(desc, samegwfdesc)
+        dxanothersamegwf = dxpy.DXGlobalWorkflow(name="gwf_name", alias="0.0.1")
+        anothersamegwfdesc = dxanothersamegwf.describe()
+        self.assertEqual(desc, anothersamegwfdesc)
+
+        # test fields parameter for describe (different cases for when
+        # the handler was created different ways and therefore
+        # sometimes doesn't have the _dxid field)
+        smaller_desc = dxgwf.describe(fields={"name": True, "version": True})
+        self.assertEqual(len(smaller_desc), 2)
+        self.assertEqual(smaller_desc['name'], 'gwf_name')
+        self.assertEqual(smaller_desc['version'], '0.0.1')
+
+        smaller_desc = dxsamegwf.describe(fields={"name": True, "version": True})
+        self.assertEqual(len(smaller_desc), 2)
+        self.assertEqual(smaller_desc['name'], 'gwf_name')
+        self.assertEqual(smaller_desc['version'], '0.0.1')
+
+        smaller_desc = dxanothersamegwf.describe(fields={"name": True, "version": True})
+        self.assertEqual(len(smaller_desc), 2)
+        self.assertEqual(smaller_desc['name'], 'gwf_name')
+        self.assertEqual(smaller_desc['version'], '0.0.1')
 
 class TestDXSearch(unittest.TestCase):
     def setUp(self):
@@ -1957,6 +2164,8 @@ class TestDXSearch(unittest.TestCase):
         finally:
             dxpy.WORKSPACE_ID = old_workspace
 
+    @pytest.mark.TRACEABILITY_MATRIX
+    @testutil.update_traceability_matrix(["DNA_API_PROJ_VIEW_PROJECT_LIST"])
     def test_find_projects(self):
         dxproject = dxpy.DXProject()
         results = list(dxpy.find_projects())
@@ -2035,6 +2244,7 @@ class TestDXSearch(unittest.TestCase):
                      outputSpec=[{"name": "mappings", "class": "record"}],
                      runSpec={"code": "def main(): pass",
                               "interpreter": "python2.7",
+                              "distribution": "Ubuntu", "release": "14.04",
                               "execDepends": [{"name": "python-numpy"}]})
         dxrecord = dxpy.new_dxrecord()
         dxrecord.close()
@@ -2186,7 +2396,7 @@ class TestHTTPResponses(unittest.TestCase):
     def test_bad_host(self):
         # Verify that the exception raised is one that dxpy would
         # consider to be retryable, but truncate the actual retry loop
-        with self.assertRaises(requests.packages.urllib3.exceptions.ProtocolError) as exception_cm:
+        with self.assertRaises(requests.packages.urllib3.exceptions.NewConnectionError) as exception_cm:
             dxpy.DXHTTPRequest('http://doesnotresolve.dnanexus.com/', {}, prepend_srv=False, always_retry=False,
                                max_retries=1)
         self.assertTrue(dxpy._is_retryable_exception(exception_cm.exception))
@@ -2194,7 +2404,7 @@ class TestHTTPResponses(unittest.TestCase):
     def test_connection_refused(self):
         # Verify that the exception raised is one that dxpy would
         # consider to be retryable, but truncate the actual retry loop
-        with self.assertRaises(requests.packages.urllib3.exceptions.ProtocolError) as exception_cm:
+        with self.assertRaises(requests.packages.urllib3.exceptions.NewConnectionError) as exception_cm:
             # Connecting to a port on which there is no server running
             dxpy.DXHTTPRequest('http://localhost:20406', {}, prepend_srv=False, always_retry=False, max_retries=1)
         self.assertTrue(dxpy._is_retryable_exception(exception_cm.exception))
@@ -2211,7 +2421,7 @@ class TestHTTPResponses(unittest.TestCase):
         with self.assertRaises(TypeError):
             dxpy.DXHTTPRequest("/system/whoami", {}, cert="nonexistent")
         if dxpy.APISERVER_PROTOCOL == "https":
-            with self.assertRaisesRegexp((TypeError,SSLError), "file|string"):
+            with self.assertRaisesRegexp((TypeError,SSLError, OpenSSL.SSL.Error), "file|string"):
                 dxpy.DXHTTPRequest("/system/whoami", {}, verify="nonexistent")
             with self.assertRaisesRegexp((SSLError, IOError, OpenSSL.SSL.Error), "file"):
                 dxpy.DXHTTPRequest("/system/whoami", {}, cert_file="nonexistent")
@@ -2328,6 +2538,8 @@ class TestDataobjectFunctions(unittest.TestCase):
         self.assertEqual(handler._name, "swiss-army-knife")
         self.assertEqual(handler._alias, "1.0.0")
 
+    @pytest.mark.TRACEABILITY_MATRIX
+    @testutil.update_traceability_matrix(["DNA_API_DATA_OBJ_VIEW_DETAILS","DNA_API_DATA_OBJ_VIEW_CONTAINING_PROJECT","DNA_API_DATA_OBJ_DESCRIBE"])
     def test_describe_data_objects(self):
         objects = []
         types = []
@@ -2629,7 +2841,7 @@ class TestIdempotentRequests(unittest.TestCase):
         tearDownTempProjects(self)
 
     code = '''@dxpy.entry_point('main')\ndef main():\n    pass'''
-    run_spec = {"code": code, "interpreter": "python2.7"}
+    run_spec = {"code": code, "interpreter": "python2.7", "distribution": "Ubuntu", "release": "14.04"}
 
     # Create an applet using DXApplet.new
     def create_applet(self, name="app_name"):
@@ -2823,7 +3035,17 @@ class TestAppBuilderUtils(unittest.TestCase):
         assert_consistent_regions({"aws:us-east-1": None}, ["aws:us-east-1"])
 
         with self.assertRaises(app_builder.AppBuilderException):
-            assert_consistent_regions({"aws:us-east-1": None}, ["aws:us-west-1"])
+            assert_consistent_regions({"aws:us-east-1": None}, ["azure:westus"])
+
+
+class TestApiWrappers(unittest.TestCase):
+    @pytest.mark.TRACEABILITY_MATRIX
+    @testutil.update_traceability_matrix(["DNA_API_MSG_SYSTEM_GREET"])
+    def test_system_greet(self):
+        greeting = dxpy.api.system_greet(
+            {'client': 'dxclient', 'version': 'v'+dxpy.TOOLKIT_VERSION},
+            auth=None)
+        assert 'messages' in greeting
 
 
 if __name__ == '__main__':

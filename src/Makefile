@@ -37,6 +37,11 @@ FEDORA_MAJOR_VERSION := $(shell test -e /etc/issue && (grep -o "Fedora release [
 UBUNTU_VERSION := $(shell test -e /etc/issue && (grep -o "Ubuntu [0-9]\+\.[0-9]\+" /etc/issue | sed -e "s/Ubuntu //"))
 RHEL_MAJOR_VERSION := $(shell test -e /etc/redhat-release && (grep -o "Red Hat Enterprise Linux .* release [0-9]\+" /etc/redhat-release | sed -e "s/Red Hat Enterprise Linux .* release //"))
 
+# Set the dxWDL version to download from git
+ifndef DXWDL_VERSION
+	DXWDL_VERSION = 0.74
+endif
+
 ifndef CCACHE_DISABLE
 	export PATH := /usr/lib/ccache:$(PATH)
 endif
@@ -64,7 +69,7 @@ else
 	MAYBE_SUDO='sudo'
 endif
 
-all: api_wrappers cpp src_libs python dx-contigset-to-fasta dx-verify-file jq dx-docker
+all: api_wrappers cpp src_libs python dx-verify-file jq dx-docker
 
 # Don't try to initialize the submodule in source distributions, it should
 # already be there and ready to build.
@@ -118,6 +123,7 @@ src_libs: api_wrappers
 	cp -R -v bash "$(DNANEXUS_LIBDIR)"
 
 PYTHON_LIBDIR := $(DNANEXUS_LIBDIR)/python2.7/site-packages
+JAVA_LIBDIR := $(DNANEXUS_LIBDIR)/java
 
 python: api_wrappers toolkit_version $(DNANEXUS_HOME)/bin/dx
 
@@ -151,7 +157,7 @@ pynsist_installer: toolkit_version $(DNANEXUS_HOME)/bin/dx dx-verify-file jq
 	    cp "$(DNANEXUS_HOME)"/src/python/dist/$${DXPY_WHEEL_FILENAME} "$(DNANEXUS_HOME)"/build/pynsist_files/
 
 	# Download the .whl files for each of dxpy's Python dependencies, to bundle with NSIS installer
-	unset PYTHONPATH; source "$(DX_PY_ENV)/$(ACTIVATE)"; python -m pip install --download "$(DNANEXUS_HOME)"/build/pynsist_files -r python/requirements.txt -r python/requirements_windows.txt
+	unset PYTHONPATH; source "$(DX_PY_ENV)/$(ACTIVATE)"; mkdir -p "$(DNANEXUS_HOME)"/build/pynsist_files/wheelfile_depends; python -m pip install --download "$(DNANEXUS_HOME)"/build/pynsist_files/wheelfile_depends -r python/requirements.txt -r python/requirements_windows.txt
 
 	# Insert the wheel filename into installer.cfg
 	export DXPY_WHEEL_FILENAME=$$(basename $(DNANEXUS_HOME)/src/python/dist/dxpy-*.whl) ; \
@@ -167,7 +173,7 @@ pynsist_installer: toolkit_version $(DNANEXUS_HOME)/bin/dx dx-verify-file jq
 	# Copy .exe installer to dx-toolkit root once it's ready
 	cp "$(DNANEXUS_HOME)"/build/pynsist_files/build/nsis/DNAnexus_CLI_"$(GIT_TOOLKIT_VERSION_SHORT)".exe "$(DNANEXUS_HOME)"/dx-toolkit-"$(GIT_TOOLKIT_VERSION_SHORT)".exe
 
-$(DNANEXUS_HOME)/bin/dx: $(shell find python/{dxpy,scripts,requirements*,setup*} -not -name toolkit_version*)
+$(DNANEXUS_HOME)/bin/dx: portablewf $(shell find python/{dxpy,scripts,requirements*,setup*} -not -name toolkit_version*)
 	python -c 'import sys; exit("dx-toolkit is not compatible with Python < 2.7" if sys.version_info < (2, 7) else 0)'
 	rm -rf "$(PYTHON_LIBDIR)" "$(DX_PY_ENV)" python/dist
 	mkdir -p "$$(dirname '$(PYTHON_LIBDIR)')"
@@ -184,11 +190,6 @@ endif
 	# On OS X, install the gnureadline package and download other osx specific packages
 ifeq ($(UNAME), Darwin)
 	unset PYTHONPATH; source "$(DX_PY_ENV)/$(ACTIVATE)"; pip install --no-cache-dir --prefix="$(DNANEXUS_HOME)" -r python/requirements_readline.txt
-	# Download ndg-httpsclient for cryptography
-	pip download --no-cache-dir -d "$(DNANEXUS_HOME)"/osx-python-packages -r python/requirements_osx.txt
-	# For OS X < 10.10 download cryptography.whl and cffi.whl
-	pip download --no-cache-dir --no-deps -d "$(DNANEXUS_HOME)"/osx-python-packages --platform macosx_10_6_intel --only-binary=:all: cryptography
-	pip download --no-cache-dir --no-deps -d "$(DNANEXUS_HOME)"/osx-python-packages --platform macosx_10_6_intel --only-binary=:all: cffi
 endif
 
 	# Build the dxpy wheel and move it into place
@@ -206,6 +207,9 @@ else
 	mv "$(DNANEXUS_HOME)"/lib/python?.?/site-packages "$(PYTHON_LIBDIR)" || mv "$(DNANEXUS_HOME)"/site-packages "$(PYTHON_LIBDIR)"
 endif
 	rm -f "$(DNANEXUS_HOME)/bin/xattr"
+	mkdir -p "$(JAVA_LIBDIR)"
+	cp -f "$(DNANEXUS_HOME)"/bin/dxWDL.jar "$(JAVA_LIBDIR)"/dxWDL.jar
+	ln -s ../../../../java/dxWDL.jar "$(PYTHON_LIBDIR)"/dxpy/scripts/dxWDL.jar
 
 # If running in fakeroot, override some maven settings so that maven can still
 # find a localRepository to write to.
@@ -221,9 +225,6 @@ R: api_wrappers toolkit_version
 
 # Tools
 # =====
-
-dx-contigset-to-fasta: api_wrappers
-	$(MAKE) -C dx-contigset-to-fasta install DESTDIR=$(DNANEXUS_HOME) PREFIX=/
 
 dx-verify-file: api_wrappers
 	$(MAKE) -C dx-verify-file install DESTDIR=$(DNANEXUS_HOME) PREFIX=/
@@ -245,6 +246,15 @@ else
 	curl -k -sL https://dl.dnanex.us/F/D/gzXf3VbVf052FXkKB7yq9PPxGqBKfpbPZPq6V7jx/docker2aci > $(DNANEXUS_HOME)/bin/docker2aci && chmod 777 $(DNANEXUS_HOME)/bin/docker2aci
 endif
 
+# Support for portable workflows, using the dxWDL compiler
+portablewf: $(DNANEXUS_HOME)/bin/dxWDL-$(DXWDL_VERSION).jar
+	ln -s -f $(DNANEXUS_HOME)/bin/dxWDL-$(DXWDL_VERSION).jar $(DNANEXUS_HOME)/bin/dxWDL.jar
+
+# Download the correct dxWDL version from github, and install it
+$(DNANEXUS_HOME)/bin/dxWDL-$(DXWDL_VERSION).jar:
+	curl -L "https://github.com/dnanexus/dxWDL/releases/download/$(DXWDL_VERSION)/dxWDL-$(DXWDL_VERSION).jar" -o $(DNANEXUS_HOME)/bin/dxWDL-$(DXWDL_VERSION).jar
+
+
 # Tests
 # =====
 
@@ -257,10 +267,8 @@ coverage_python:
 test_python:
 	../build/run_python_integration_tests.py
 
-# mvn will compile the Java files, but it doesn't know how to generate the API
-# wrappers and toolkit release file.
-test_java: java
-	(cd java; mvn test)
+test_java:
+	../build/run_java_integration_tests.py
 
 # Installation
 # ============
@@ -467,18 +475,18 @@ curl/stage/lib/libcurl.la: shasum openssl
 	    --enable-static=yes $(CURL_SHARED_LIBS) $(CURL_WITH_SSL) --prefix=/
 	$(MAKE) -C curl install DESTDIR="$(DNANEXUS_HOME)/src/curl/stage"
 
-CARES_PV=1.12.0
-CARES_SHA=8abfce61d2d788fb60a3441d05275162a460cbed
+CARES_PV=1.13.0
+CARES_SHA=dde50284cc3d505fb2463ff6276e61d5531b1d68
 c-ares/stage/lib/libcares.la: shasum
 	mkdir -p c-ares
-	curl ${UBUNTU_MIRROR}/pool/main/c/c-ares/c-ares_${CARES_PV}.orig.tar.gz > c-ares-${CARES_PV}.tar.gz
+	curl https://c-ares.haxx.se/download/c-ares-${CARES_PV}.tar.gz > c-ares-${CARES_PV}.tar.gz
 	[[ $$(shasum c-ares-${CARES_PV}.tar.gz|cut -f 1 -d ' ') == $(CARES_SHA) ]]
 	tar -xzf c-ares-${CARES_PV}.tar.gz -C c-ares --strip-components=1
 	cd c-ares; ./configure --prefix=/
 	$(MAKE) -C c-ares install DESTDIR="$(DNANEXUS_HOME)/src/c-ares/stage"
 
-FILE_PV=5.29
-FILE_SHA=86a2ad5745f1ce98ab810f6dc09f6f71406cfc16
+FILE_PV=5.32
+FILE_SHA=6a84bddca6fa9bcf6882832ccece38cf22b9b600
 file/stage/lib/libmagic.la: shasum
 	mkdir -p file
 	curl ${UBUNTU_MIRROR}/pool/main/f/file/file_${FILE_PV}.orig.tar.xz > file-${FILE_PV}.tar.xz
@@ -527,11 +535,10 @@ endif
 distclean: clean
 
 clean:
-	$(MAKE) -C dx-contigset-to-fasta clean
 	$(MAKE) -C dx-verify-file clean
 	$(MAKE) -C ua clean
 	-find ../bin -type f \( -name jq -or -name dx -or -name 'dx-*' \) -not -name 'dx-unpack*' -delete
-	-rm -f ../bin/docker2aci ../bin/proot
+	-rm -f ../bin/docker2aci ../bin/proot ../bin/dxWDL*.jar
 	-rm -rf python/{build,*.{egg,egg-info}}
 	-rm -rf java/target
 	-rm -rf ../lib
@@ -541,4 +548,4 @@ clean:
 	-rm -rf boost c-ares curl file openssl
 	-$(MAKE) -C jq clean
 
-.PHONY: all toolkit_version api_wrappers src_libs python pynsist_installer java dx-contigset-to-fasta ua test test_python install base_install debian_install doc setup_doc_build_virtualenv doc_python doc_dxcpp doc_dxjson doc_java R doc_R boost boost_build install_sysdeps
+.PHONY: all toolkit_version api_wrappers src_libs python pynsist_installer java ua test test_python install base_install debian_install doc setup_doc_build_virtualenv doc_python doc_dxcpp doc_dxjson doc_java R doc_R boost boost_build install_sysdeps

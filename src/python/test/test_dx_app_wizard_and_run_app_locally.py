@@ -29,6 +29,7 @@ import dxpy_testutil as testutil
 import dxpy
 from dxpy.scripts import dx_build_app
 from dxpy.utils.completer import InstanceTypesCompleter
+import pytest
 
 
 def run(command, **kwargs):
@@ -40,7 +41,7 @@ def run(command, **kwargs):
 
 supported_languages = ['Python', 'bash']
 
-def run_dx_app_wizard():
+def run_dx_app_wizard(instance_type=None):
     old_cwd = os.getcwd()
     tempdir = tempfile.mkdtemp(prefix='Программа')
     os.chdir(tempdir)
@@ -98,7 +99,10 @@ def run_dx_app_wizard():
         wizard.sendline("t1.микро")
         wizard.expect("Error: unrecognized response, expected one of")
         wizard.expect("Choose an instance type for your app")
-        wizard.sendline()
+        if instance_type is not None:
+            wizard.sendline(instance_type)
+        else:
+            wizard.sendline()
         wizard.expect("App directory created")
         wizard.close()
 
@@ -165,12 +169,20 @@ class TestDXAppWizardAndRunAppLocally(DXTestCase):
     def test_dx_app_wizard(self):
         appdir = run_dx_app_wizard()
         dxapp_json = json.load(open(os.path.join(appdir, 'dxapp.json')))
-        self.assertEqual(dxapp_json['runSpec']['systemRequirements']['*']['instanceType'],
+        self.assertEqual(dxapp_json['regionalOptions']['aws:us-east-1']['systemRequirements']['*']['instanceType'],
                          InstanceTypesCompleter.default_instance_type.Name)
         self.assertEqual(dxapp_json['runSpec']['distribution'], 'Ubuntu')
         self.assertEqual(dxapp_json['runSpec']['release'], '14.04')
         self.assertEqual(dxapp_json['runSpec']['timeoutPolicy']['*']['hours'], 24)
 
+    def test_dx_app_wizard_with_azure_instance_type(self):
+        appdir = run_dx_app_wizard("azure:mem1_ssd1_x2")
+        dxapp_json = json.load(open(os.path.join(appdir, 'dxapp.json')))
+        self.assertEqual(dxapp_json['regionalOptions']['azure:westus']['systemRequirements']['*']['instanceType'],
+                         "azure:mem1_ssd1_x2")
+
+    @pytest.mark.TRACEABILITY_MATRIX
+    @testutil.update_traceability_matrix(["DNA_CLI_HELP_CREATE_APP_WIZARD"])
     def test_dx_run_app_locally_interactively(self):
         appdir = create_app_dir()
         local_run = pexpect.spawn("dx-run-app-locally {} -iin1=8".format(appdir))
@@ -204,6 +216,17 @@ class TestDXAppWizardAndRunAppLocally(DXTestCase):
         remote_job.wait_on_done()
         result = remote_job.describe()
         self.assertEqual(result["output"]["out1"], 140)
+
+    def test_dx_build_app_locally_using_app_builder(self):
+        appdir = create_app_dir()
+        print("Setting current project to", self.project)
+        dxpy.WORKSPACE_ID = self.project
+        dxpy.PROJECT_CONTEXT_ID = self.project
+        bundled_resources = dxpy.app_builder.upload_resources(appdir)
+        applet_id, _ignored_applet_spec = dxpy.app_builder.upload_applet(appdir, bundled_resources, overwrite=True, dx_toolkit_autodep=False)
+        app_obj = dxpy.DXApplet(applet_id)
+        self.assertEqual(app_obj.describe()['id'], app_obj.get_id())
+
 
     def test_file_download(self):
         '''
@@ -311,7 +334,8 @@ class TestDXAppWizardAndRunAppLocally(DXTestCase):
         dxpy.api.applet_new({"project": dxpy.WORKSPACE_ID,
                              "name": "anapplet",
                              "dxapi": "1.0.0",
-                             "runSpec": {"code": "", "interpreter": "bash"}})['id']
+                             "runSpec": {"code": "", "interpreter": "bash",
+                                         "distribution": "Ubuntu", "release": "14.04"}})['id']
         dxpy.upload_string("foo", name="afile")
         dxrecord = dxpy.new_dxrecord(name="arecord")
         dxrecord.close()
@@ -381,14 +405,8 @@ class TestDXAppWizardAndRunAppLocally(DXTestCase):
     @unittest.skipUnless(testutil.TEST_ENV, 'skipping test that would clobber your local environment')
     def test_dx_run_app_locally_without_auth(self):
         temp_file_path = tempfile.mkdtemp()
-        app_spec = {
-            "name": "test_run_locally_without_auth",
-            "dxapi": "1.0.0",
-            "runSpec": {"file": "code.py", "interpreter": "python2.7"},
-            "inputSpec": [{"name": "foo", "class": "file"}],
-            "outputSpec": [],
-            "version": "1.0.0"
-            }
+        app_spec = dict(testutil.DXTestCaseBuildApps.base_app_spec, name="test_run_locally_without_auth",
+                        inputSpec = [{"name": "foo", "class": "file"}])
         app_dir_path = os.path.join(temp_file_path, app_spec['name'])
         os.mkdir(app_dir_path)
         with open(os.path.join(app_dir_path, 'dxapp.json'), 'w') as manifest:
@@ -401,14 +419,10 @@ class TestDXAppWizardAndRunAppLocally(DXTestCase):
 
     def test_dx_run_app_locally_invalid_interpreter(self):
         temp_file_path = tempfile.mkdtemp()
-        app_spec = {
-            "name": "test_run_locally_invalid_interpreter",
-            "dxapi": "1.0.0",
-            "runSpec": {"file": "code.py", "interpreter": "python"},
-            "inputSpec": [],
-            "outputSpec": [],
-            "version": "1.0.0"
-            }
+        app_spec = dict(testutil.DXTestCaseBuildApps.base_app_spec,
+                        name="test_run_locally_invalid_interpreter",
+                        runSpec = {"file": "code.py", "interpreter": "python",
+                                    "distribution": "Ubuntu", "release": "14.04"})
         app_dir_path = os.path.join(temp_file_path, app_spec['name'])
         os.mkdir(app_dir_path)
         with open(os.path.join(app_dir_path, 'dxapp.json'), 'w') as manifest:

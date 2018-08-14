@@ -22,6 +22,8 @@ import locale
 import os, sys, unittest, tempfile, shutil, subprocess, re, json, platform
 import time
 import random
+import functools
+import datetime
 
 from contextlib import contextmanager
 
@@ -40,6 +42,7 @@ TEST_NO_RATE_LIMITS = _run_all_tests or 'DXTEST_NO_RATE_LIMITS' in os.environ
 TEST_RUN_JOBS = _run_all_tests or 'DXTEST_RUN_JOBS' in os.environ
 TEST_TCSH = _run_all_tests or 'DXTEST_TCSH' in os.environ
 TEST_WITH_AUTHSERVER = _run_all_tests or 'DXTEST_WITH_AUTHSERVER' in os.environ
+TEST_WITH_SMOKETEST_APP = _run_all_tests or 'DXTEST_WITH_SMOKETEST_APP' in os.environ
 TEST_ONLY_MASTER = 'DX_RUN_NEXT_TESTS' in os.environ
 TEST_MULTIPLE_USERS = _run_all_tests or 'DXTEST_SECOND_USER' in os.environ
 
@@ -428,19 +431,143 @@ class DXTestCase(unittest.TestCase):
             self.assertFalse(True, error_string)
 
 
+class DXTestCaseBuildWorkflows(DXTestCase):
+    """
+    This class adds methods to ``DXTestCase`` related to (global) workflow
+    creation and destruction.
+    """
+    base_workflow_spec = {
+        "name": "my_workflow",
+        "outputFolder": "/"
+    }
+
+    def setUp(self):
+        super(DXTestCaseBuildWorkflows, self).setUp()
+        self.temp_file_path = tempfile.mkdtemp()
+        self.test_applet_id = self.create_applet(self.project)
+        self.dxworkflow_spec = self.create_dxworkflow_spec()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_file_path)
+        super(DXTestCaseBuildWorkflows, self).tearDown()
+
+    def write_workflow_directory(self, workflow_name, dxworkflow_str,
+                                 readme_content="Workflow doc", build_basic=False):
+        # Note: if called twice with the same workflow_name, will overwrite
+        # the dxworkflow.json and code file (if specified) but will not
+        # remove any other files that happened to be present
+        try:
+            os.mkdir(os.path.join(self.temp_file_path, workflow_name))
+        except OSError as e:
+            if e.errno != 17:  # directory already exists
+                raise e
+        if dxworkflow_str is not None:
+            with open(os.path.join(self.temp_file_path, workflow_name, 'dxworkflow.json'), 'wb') as manifest:
+                manifest.write(dxworkflow_str.encode())
+        elif build_basic:
+            with open(os.path.join(self.temp_file_path, workflow_name, 'dxworkflow.json'), 'wb') as manifest:
+                manifest.write(self.base_workflow_spec)
+        with open(os.path.join(self.temp_file_path, workflow_name, 'Readme.md'), 'w') as readme_file:
+            readme_file.write(readme_content)
+        return os.path.join(self.temp_file_path, workflow_name)
+
+    def create_applet(self, project_id):
+        return dxpy.api.applet_new({"name": "my_first_applet",
+                                    "project": project_id,
+                                    "dxapi": "1.0.0",
+                                    "inputSpec": [{"name": "number", "class": "int"}],
+                                    "outputSpec": [{"name": "number", "class": "int"}],
+                                    "runSpec": {"interpreter": "bash",
+                                                "distribution": "Ubuntu",
+                                                "release": "14.04",
+                                                "code": "exit 0"}
+                                   })['id']
+
+    def create_workflow_spec(self, project_id):
+        workflow_spec = {"name": "my_workflow",
+                         "project": project_id,
+                         "stages": [{"id": "stage_0",
+                                     "name": "stage_0_name",
+                                     "executable": self.test_applet_id,
+                                     "input": {"number": {"$dnanexus_link": {"workflowInputField": "foo"}}},
+                                     "folder": "/stage_0_output",
+                                     "executionPolicy": {"restartOn": {}, "onNonRestartableFailure": "failStage"},
+                                     "systemRequirements": {"main": {"instanceType": "mem1_ssd1_x2"}}},
+                                    {"id": "stage_1",
+                                     "executable": self.test_applet_id,
+                                     "input": {"number": {"$dnanexus_link": {"stage": "stage_0",
+                                                                             "outputField": "number"}}}}],
+                         "workflow_inputs": [{"name": "foo", "class": "int"}],
+                         "workflow_outputs": [{"name": "bar", "class": "int", "outputSource":
+                                              {"$dnanexus_link": {"stage": "stage_0", "outputField": "number"}}}]
+                        }
+        return workflow_spec
+
+    def create_workflow(self, project_id, workflow_spec=None):
+        if not workflow_spec:
+              workflow_spec = self.create_workflow_spec(project_id)
+        dxworkflow = dxpy.DXWorkflow()
+        dxworkflow.new(**workflow_spec)
+        dxworkflow._close(dxworkflow.get_id())
+        return dxworkflow
+
+    def create_global_workflow_spec(self, project_id, name, version, workflow_spec=None):
+        dxworkflow = self.create_workflow(project_id, workflow_spec)
+        dxglobalworkflow_spec = {
+            "name": name,
+            "version": version,
+            "regionalOptions": {
+                "aws:us-east-1": {
+                     "workflow": dxworkflow.get_id()
+                }
+            }
+        }
+        return dxglobalworkflow_spec
+
+    def create_global_workflow(self, project_id, name, version, workflow_spec=None):
+        spec = self.create_global_workflow_spec(project_id, name, version, workflow_spec)
+        dxglobalworkflow = dxpy.DXGlobalWorkflow()
+        dxglobalworkflow.new(**spec)
+        return dxglobalworkflow
+
+    def create_dxworkflow_spec(self):
+        return {"name": "my_workflow",
+                "title": "This is a beautiful workflow",
+                "version": "0.0.1",
+                "dxapi": "1.0.0",
+                "stages": [{"id": "stage_0",
+                            "name": "stage_0_name",
+                            "executable": self.test_applet_id,
+                            "input": {"number": 777},
+                            "folder": "/stage_0_output",
+                            "executionPolicy": {"restartOn": {}, "onNonRestartableFailure": "failStage"},
+                            "systemRequirements": {"main": {"instanceType": "mem1_ssd1_x2"}}},
+                           {"id": "stage_1",
+                            "executable": self.test_applet_id,
+                            "input": {"number": {"$dnanexus_link": {"stage": "stage_0",
+                                                                             "outputField": "number"}}}}]}
+
+
 class DXTestCaseBuildApps(DXTestCase):
     """
     This class adds methods to ``DXTestCase`` related to app creation,
     app destruction, and extraction of app data as local files.
     """
 
-    base_app_spec = {
+    base_applet_spec = {
         "dxapi": "1.0.0",
-        "runSpec": {"file": "code.py", "interpreter": "python2.7"},
+        "runSpec": {
+          "file": "code.py",
+          "interpreter": "python2.7",
+          "distribution": "Ubuntu",
+          "release": "14.04"
+          },
         "inputSpec": [],
         "outputSpec": [],
-        "version": "1.0.0"
+        "ignoreReuse": False
     }
+
+    base_app_spec = dict(base_applet_spec, version="1.0.0")
 
     def setUp(self):
         super(DXTestCaseBuildApps, self).setUp()
@@ -512,3 +639,23 @@ class TemporaryFile:
 
     def close(self):
         return self.temp_file.close()
+
+
+def update_traceability_matrix(id_array):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            daystr = datetime.datetime.today().strftime('%Y%m%d')
+            with open("{0}.traceability.{1}.csv".format(os.path.splitext(os.path.basename(__file__))[0], daystr), "a") as f:
+                secstr = datetime.datetime.today().strftime('%Y%m%d%H%M%S')
+                try:
+                    retval = func(*args, **kwargs)
+                    for tid in id_array:
+                        f.write("{0},{1},{2}\n".format(tid, "PASS", secstr))
+                    return retval
+                except Exception as e:
+                    for tid in id_array:
+                        f.write("{0},{1},{2}\n".format(tid, "FAIL", secstr))
+                    raise
+        return wrapper
+    return decorator

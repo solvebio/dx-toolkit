@@ -283,6 +283,7 @@ contains_phi.add_argument('--phi', dest='containsPHI', choices=["true", "false"]
 
 def _parse_inst_type(thing):
     if thing.strip().startswith('{'):
+        # expects a map of entry point to instance type
         try:
             return json.loads(thing)
         except ValueError:
@@ -324,6 +325,8 @@ def get_update_project_args(args):
         input_params["protected"] = True if args.protected == 'true' else False
     if args.restricted is not None:
         input_params["restricted"] = True if args.restricted == 'true' else False
+    if args.download_restricted is not None:
+        input_params["downloadRestricted"] = True if args.download_restricted == 'true' else False
     if args.containsPHI is not None:
         input_params["containsPHI"] = True if args.containsPHI == 'true' else False
     if args.bill_to is not None:

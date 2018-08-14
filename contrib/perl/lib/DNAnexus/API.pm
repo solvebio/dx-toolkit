@@ -266,6 +266,19 @@ sub appRunWithAlias($;$%) {
 }
 
 
+sub appValidateBatch($;$%) {
+    my ($app_id_or_name, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$app_id_or_name.'/validateBatch', $input_params, %kwargs);
+}
+
+sub appValidateBatchWithAlias($;$%) {
+    my ($app_name, $app_alias, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return appValidateBatch($app_name.'/'.$app_alias, $input_params, %kwargs);
+}
+
+
 sub appUninstall($;$%) {
     my ($app_id_or_name, $input_params, %kwargs) = @_;
     %kwargs = () unless %kwargs;
@@ -345,6 +358,13 @@ sub appletRename($;$%) {
     my ($object_id, $input_params, %kwargs) = @_;
     %kwargs = () unless %kwargs;
     return DXHTTPRequest('/'.$object_id.'/rename', $input_params, %kwargs);
+}
+
+
+sub appletValidateBatch($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/validateBatch', $input_params, %kwargs);
 }
 
 
@@ -429,6 +449,90 @@ sub containerRenameFolder($;$%) {
     my ($object_id, $input_params, %kwargs) = @_;
     %kwargs = () unless %kwargs;
     return DXHTTPRequest('/'.$object_id.'/renameFolder', $input_params, %kwargs);
+}
+
+
+sub databaseAddTags($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/addTags', $input_params, %kwargs);
+}
+
+
+sub databaseAddTypes($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/addTypes', $input_params, %kwargs);
+}
+
+
+sub databaseDescribe($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/describe', $input_params, %kwargs);
+}
+
+
+sub databaseGetDetails($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/getDetails', $input_params, %kwargs);
+}
+
+
+sub databaseListProjects($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/listProjects', $input_params, %kwargs);
+}
+
+
+sub databaseRelocate($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/relocate', $input_params, %kwargs);
+}
+
+
+sub databaseRemoveTags($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/removeTags', $input_params, %kwargs);
+}
+
+
+sub databaseRemoveTypes($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/removeTypes', $input_params, %kwargs);
+}
+
+
+sub databaseRename($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/rename', $input_params, %kwargs);
+}
+
+
+sub databaseSetDetails($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/setDetails', $input_params, %kwargs);
+}
+
+
+sub databaseSetProperties($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/setProperties', $input_params, %kwargs);
+}
+
+
+sub databaseSetVisibility($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/setVisibility', $input_params, %kwargs);
 }
 
 
@@ -534,6 +638,125 @@ sub fileNew(;$%) {
     my ($input_params, %kwargs) = @_;
     %kwargs = () unless %kwargs;
     return DXHTTPRequest('/file/new', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowAddAuthorizedUsers($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/addAuthorizedUsers', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowAddCategories($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/addCategories', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowAddDevelopers($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/addDevelopers', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowAddTags($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/addTags', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowDelete($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/delete', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowDescribe($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/describe', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowListAuthorizedUsers($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/listAuthorizedUsers', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowListCategories($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/listCategories', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowListDevelopers($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/listDevelopers', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowPublish($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/publish', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowRemoveAuthorizedUsers($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/removeAuthorizedUsers', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowRemoveCategories($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/removeCategories', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowRemoveDevelopers($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/removeDevelopers', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowRemoveTags($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/removeTags', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowRun($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/run', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowUpdate($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/update', $input_params, %kwargs);
+}
+
+
+sub globalWorkflowNew(;$%) {
+    my ($input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/globalworkflow/new', $input_params, %kwargs);
 }
 
 
@@ -1041,6 +1264,13 @@ sub systemFindDataObjects(;$%) {
 }
 
 
+sub systemFindGlobalWorkflows(;$%) {
+    my ($input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/system/findGlobalWorkflows', $input_params, %kwargs);
+}
+
+
 sub systemResolveDataObjects(;$%) {
     my ($input_params, %kwargs) = @_;
     %kwargs = () unless %kwargs;
@@ -1059,6 +1289,13 @@ sub systemFindAnalyses(;$%) {
     my ($input_params, %kwargs) = @_;
     %kwargs = () unless %kwargs;
     return DXHTTPRequest('/system/findAnalyses', $input_params, %kwargs);
+}
+
+
+sub systemFindDatabases(;$%) {
+    my ($input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/system/findDatabases', $input_params, %kwargs);
 }
 
 
@@ -1094,6 +1331,13 @@ sub systemFindOrgs(;$%) {
     my ($input_params, %kwargs) = @_;
     %kwargs = () unless %kwargs;
     return DXHTTPRequest('/system/findOrgs', $input_params, %kwargs);
+}
+
+
+sub systemGenerateBatchInputs(;$%) {
+    my ($input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/system/generateBatchInputs', $input_params, %kwargs);
 }
 
 
@@ -1258,6 +1502,13 @@ sub workflowRun($;$%) {
 }
 
 
+sub workflowValidateBatch($;$%) {
+    my ($object_id, $input_params, %kwargs) = @_;
+    %kwargs = () unless %kwargs;
+    return DXHTTPRequest('/'.$object_id.'/validateBatch', $input_params, %kwargs);
+}
+
+
 sub workflowSetDetails($;$%) {
     my ($object_id, $input_params, %kwargs) = @_;
     %kwargs = () unless %kwargs;
@@ -1308,5 +1559,5 @@ sub workflowNew(;$%) {
 
 
 our @ISA = "Exporter";
-our @EXPORT_OK = qw(analysisAddTags analysisDescribe analysisRemoveTags analysisSetProperties analysisTerminate appAddAuthorizedUsers appAddCategories appAddDevelopers appAddTags appDelete appDescribe appGet appInstall appListAuthorizedUsers appListCategories appListDevelopers appPublish appRemoveAuthorizedUsers appRemoveCategories appRemoveDevelopers appRemoveTags appRun appUninstall appUpdate appNew appletAddTags appletDescribe appletGet appletGetDetails appletListProjects appletRemoveTags appletRename appletRun appletSetProperties appletNew containerClone containerDescribe containerDestroy containerListFolder containerMove containerNewFolder containerRemoveFolder containerRemoveObjects containerRenameFolder fileAddTags fileAddTypes fileClose fileDescribe fileDownload fileGetDetails fileListProjects fileRemoveTags fileRemoveTypes fileRename fileSetDetails fileSetProperties fileSetVisibility fileUpload fileNew gtableAddRows gtableAddTags gtableAddTypes gtableClose gtableDescribe gtableGet gtableGetDetails gtableListProjects gtableNextPart gtableRemoveTags gtableRemoveTypes gtableRename gtableSetDetails gtableSetProperties gtableSetVisibility gtableNew jobAddTags jobDescribe jobGetLog jobRemoveTags jobSetProperties jobTerminate jobNew notificationsGet notificationsMarkRead orgDescribe orgFindMembers orgFindProjects orgFindApps orgInvite orgRemoveMember orgSetMemberAccess orgUpdate orgNew projectAddTags projectClone projectDecreasePermissions projectDescribe projectDestroy projectInvite projectLeave projectListFolder projectMove projectNewFolder projectRemoveFolder projectRemoveObjects projectRemoveTags projectRenameFolder projectSetProperties projectTransfer projectUpdate projectUpdateSponsorship projectNew recordAddTags recordAddTypes recordClose recordDescribe recordGetDetails recordListProjects recordRemoveTags recordRemoveTypes recordRename recordSetDetails recordSetProperties recordSetVisibility recordNew systemDescribeDataObjects systemDescribeExecutions systemDescribeProjects systemFindAffiliates systemFindApps systemFindDataObjects systemResolveDataObjects systemFindExecutions systemFindAnalyses systemFindJobs systemFindProjects systemFindUsers systemFindProjectMembers systemFindOrgs systemGlobalSearch systemGreet systemHeaders systemShortenURL systemWhoami userDescribe userUpdate workflowAddStage workflowAddTags workflowAddTypes workflowClose workflowDescribe workflowDryRun workflowGetDetails workflowIsStageCompatible workflowListProjects workflowMoveStage workflowOverwrite workflowRemoveStage workflowRemoveTags workflowRemoveTypes workflowRename workflowRun workflowSetDetails workflowSetProperties workflowSetStageInputs workflowSetVisibility workflowUpdate workflowUpdateStageExecutable workflowNew);
+our @EXPORT_OK = qw(analysisAddTags analysisDescribe analysisRemoveTags analysisSetProperties analysisTerminate appAddAuthorizedUsers appAddCategories appAddDevelopers appAddTags appDelete appDescribe appGet appInstall appListAuthorizedUsers appListCategories appListDevelopers appPublish appRemoveAuthorizedUsers appRemoveCategories appRemoveDevelopers appRemoveTags appRun appValidateBatch appUninstall appUpdate appNew appletAddTags appletDescribe appletGet appletGetDetails appletListProjects appletRemoveTags appletRename appletValidateBatch appletRun appletSetProperties appletNew containerClone containerDescribe containerDestroy containerListFolder containerMove containerNewFolder containerRemoveFolder containerRemoveObjects containerRenameFolder databaseAddTags databaseAddTypes databaseDescribe databaseGetDetails databaseListProjects databaseRelocate databaseRemoveTags databaseRemoveTypes databaseRename databaseSetDetails databaseSetProperties databaseSetVisibility fileAddTags fileAddTypes fileClose fileDescribe fileDownload fileGetDetails fileListProjects fileRemoveTags fileRemoveTypes fileRename fileSetDetails fileSetProperties fileSetVisibility fileUpload fileNew globalWorkflowAddAuthorizedUsers globalWorkflowAddCategories globalWorkflowAddDevelopers globalWorkflowAddTags globalWorkflowDelete globalWorkflowDescribe globalWorkflowListAuthorizedUsers globalWorkflowListCategories globalWorkflowListDevelopers globalWorkflowPublish globalWorkflowRemoveAuthorizedUsers globalWorkflowRemoveCategories globalWorkflowRemoveDevelopers globalWorkflowRemoveTags globalWorkflowRun globalWorkflowUpdate globalWorkflowNew gtableAddRows gtableAddTags gtableAddTypes gtableClose gtableDescribe gtableGet gtableGetDetails gtableListProjects gtableNextPart gtableRemoveTags gtableRemoveTypes gtableRename gtableSetDetails gtableSetProperties gtableSetVisibility gtableNew jobAddTags jobDescribe jobGetLog jobRemoveTags jobSetProperties jobTerminate jobNew notificationsGet notificationsMarkRead orgDescribe orgFindMembers orgFindProjects orgFindApps orgInvite orgRemoveMember orgSetMemberAccess orgUpdate orgNew projectAddTags projectClone projectDecreasePermissions projectDescribe projectDestroy projectInvite projectLeave projectListFolder projectMove projectNewFolder projectRemoveFolder projectRemoveObjects projectRemoveTags projectRenameFolder projectSetProperties projectTransfer projectUpdate projectUpdateSponsorship projectNew recordAddTags recordAddTypes recordClose recordDescribe recordGetDetails recordListProjects recordRemoveTags recordRemoveTypes recordRename recordSetDetails recordSetProperties recordSetVisibility recordNew systemDescribeDataObjects systemDescribeExecutions systemDescribeProjects systemFindAffiliates systemFindApps systemFindDataObjects systemFindGlobalWorkflows systemResolveDataObjects systemFindExecutions systemFindAnalyses systemFindDatabases systemFindJobs systemFindProjects systemFindUsers systemFindProjectMembers systemFindOrgs systemGenerateBatchInputs systemGlobalSearch systemGreet systemHeaders systemShortenURL systemWhoami userDescribe userUpdate workflowAddStage workflowAddTags workflowAddTypes workflowClose workflowDescribe workflowDryRun workflowGetDetails workflowIsStageCompatible workflowListProjects workflowMoveStage workflowOverwrite workflowRemoveStage workflowRemoveTags workflowRemoveTypes workflowRename workflowRun workflowValidateBatch workflowSetDetails workflowSetProperties workflowSetStageInputs workflowSetVisibility workflowUpdate workflowUpdateStageExecutable workflowNew);
 

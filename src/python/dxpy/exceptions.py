@@ -164,6 +164,20 @@ class BadJSONInReply(ValueError):
     for this are the network connection breaking, or overload on the server.
     '''
 
+class InvalidTLSProtocol(DXAPIError):
+    '''
+    Raised when the connection to the server was reset due to an ssl protocol not supported.
+    Only connections with TLS v1.2 will be accepted.
+    '''
+    def __init__(self):
+        pass
+
+    def error_message(self):
+        output = "Please refer to our blog post at https://blog.dnanexus.com/2017-09-23-upgrading-tls/ regarding upgrading to TLS 1.2."
+        return output
+
+    def __str__(self):
+        return self.error_message()
 
 class UrllibInternalError(AttributeError):
     '''
@@ -209,6 +223,7 @@ def exit_with_exc_info(code=1, message='', print_tb=False, exception=None):
     sys.exit(code)
 
 network_exceptions = (requests.packages.urllib3.exceptions.ProtocolError,
+                      requests.packages.urllib3.exceptions.NewConnectionError,
                       requests.packages.urllib3.exceptions.DecodeError,
                       requests.packages.urllib3.exceptions.ConnectTimeoutError,
                       requests.packages.urllib3.exceptions.ReadTimeoutError,

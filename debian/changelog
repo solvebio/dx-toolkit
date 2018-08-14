@@ -1,3 +1,335 @@
+dx-toolkit (0.260.0) precise; urgency=low
+
+  * Changed: dxWDL version 0.74
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Wed, 08 Aug 2018 18:28:19 +0000
+
+dx-toolkit (0.259.0) precise; urgency=low
+
+  * Added: Ubuntu release and asset version as parameters for dx-docker create-asset
+  * Added: Builds for Ubuntu 16.04
+  * Fixed: dx wait where a file with object IDs is provided in path
+  * Fixed: dx compile for debian install dxWDL.jar filepath
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Thu, 02 Aug 2018 18:35:25 +0000
+
+dx-toolkit (0.258.0) precise; urgency=low
+
+  * Added: database wrappers
+  * Added: Support dxni compilation
+  * Changed: requests >= 2.8.0
+  * Changed: psutil >= 3.3.0
+  * Fixed: Python 3 incompatibilities
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Thu, 19 Jul 2018 22:24:30 +0000
+
+dx-toolkit (0.257.0) precise; urgency=low
+
+  * Added: Support for setting and updating details on global workflows
+  * Added: Decorators for traceability tests
+  * Added: dx watch support for smart reuse
+  * Added: dx find jobs/executions support for smart reuse
+  * Added: Ability to provide a file which contains a list of jobs or data objects upon which to dx wait
+  * Added: dxWDL integration (dx compile command)
+  * Changed: python-dateutil version upgrade to 2.5
+  * Fixed: unclear behavior when --clone, --folder, and --project are simultaneously provided to dx run
+  * Fixed: DXObject.set_ids() with project set to None (it is now set to an arbitrary project associated with the file)
+  * Fixed: bash helpers tests
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Thu, 05 Jul 2018 16:30:08 +0000
+
+dx-toolkit (0.256.0) precise; urgency=low
+
+  * Changed: Cosmetic update to dx publish
+  * Changed: dx publish now sets the default alias on the published version by default
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Thu, 24 May 2018 18:01:01 +0000
+
+dx-toolkit (0.255.0) precise; urgency=low
+
+  * Added: Support for updating a global workflow
+  * Added: Wiki links to API documentation for API wrappers
+  * Added: addTags/removeTags API wrappers for global workflow
+  * Fixed: Better checking for inputs and/or inputSpec before batch running workflows
+
+ -- Aleksandra Zalcman <azalcman@dnanexus.com>  Thu, 10 May 2018 17:18:02 +0000
+
+dx-toolkit (0.254.0) precise; urgency=low
+
+  * Changed: A workflow must be closed before initializing a global workflow from it (test updates)
+
+ -- Aleksandra Zalcman <azalcman@dnanexus.com>  Thu, 03 May 2018 17:10:38 +0000
+
+dx-toolkit (0.253.0) precise; urgency=low
+
+  * Changed: Remove the "temporary" field from dx describe workflow-xxxx
+  * Added: "Deleted" field to dx describe globalworkflow-xxxx
+  * Added: a note to dx describe that the workflow is locked
+
+ -- Geet Duggal <gduggal@dnanexus.com>  Thu, 26 Apr 2018 17:50:01 +0000
+
+dx-toolkit (0.252.0) precise; urgency=low
+
+  * Added: Print proper dx describe analysis of a global workflow
+  * Added: dx publish command
+  * Added: inline cluster bootstrap script
+  * Added: dx run for global workflows
+  * Added: dx find apps tests
+  * Added: resolve paths for global workflows
+  * Added: add, remove, list users for global workflows
+  * Added: add, remove, list developers for global workflows
+  * Added: public project test
+  * Added: API tests
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Thu, 19 Apr 2018 17:23:07 +0000
+
+dx-toolkit (0.251.0) precise; urgency=low
+
+  * Added: Support for dx find global workflows
+  * Added: Initial support for dx build global workflow
+  * Added: Publish method to global workflow bindings
+  * Added: Support for dx get global workflow
+  * Added: dx download symlink
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Tue, 10 Apr 2018 14:55:36 +0000
+
+dx-toolkit (0.250.0) precise; urgency=low
+
+  * Added: Support for dx describe for global workflows
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Thu, 05 Apr 2018 16:40:25 +0000
+
+dx-toolkit (0.249.0) precise; urgency=low
+
+  * Added: zsh support
+  * Added: API wrappers for global workflow routes
+  * Added: Basic Python bindings for global workflow
+  * Added: set_properties() method to DXProject
+  * Fixed: dx get applet without execDepends
+
+ -- Aleksandra Zalcman <azalcman@dnanexus.com>  Thu, 29 Mar 2018 14:15:06 +0000
+
+dx-toolkit (0.248.0) precise; urgency=low
+
+  * Fixed: dx-clone-asset SSL error
+
+ -- Aleksandra Zalcman <azalcman@dnanexus.com>  Thu, 15 Mar 2018 16:19:38 +0000
+
+dx-toolkit (0.247.0) precise; urgency=low
+
+  * Added: Clarify documentation of stage key for dx run
+  * Added: Asset builder support for Ubuntu 16.04
+  * Added: --singlethread parameter for dx upload
+  * Changed: dx-docker pull retries more often
+  * Fixed: c-ares package version for upload agent build
+  * Fixed: Bug with Azure instance type selection in dx-app-wizard
+  * Fixed: Do not retry code 422 in dxpy
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Thu, 08 Mar 2018 16:42:17 +0000
+
+dx-toolkit (0.246.0) precise; urgency=low
+
+  * Added: socketTimeout and connectionTimeout parameters to JAVA DXEnvironment (thanks, @pkokoshnikov)
+  * Added: Generate batch inputs CLI
+  * Changed: Accept 302 as a success for ua --test
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Thu, 15 Feb 2018 19:34:09 +0000
+
+dx-toolkit (0.245.0) precise; urgency=low
+
+  * Added: Batch runner LI
+  * Changed: Updated c-ares and file packages (related to upload agent builds)
+
+ -- Aleksandra Zalcman <azalcman@dnanexus.com>  Thu, 08 Feb 2018 17:21:49 +0000
+
+dx-toolkit (0.244.0) precise; urgency=low
+
+  * Added API wrappers for [applet,app,workflow]-xxxx/validateBatch
+  * Fixed Issue where dx-clone-asset doesn't create projects in different regions if they don't already exist
+
+ -- Geet Duggal <gduggal@dnanexus.com>  Thu, 01 Feb 2018 17:53:48 +0000
+
+dx-toolkit (0.243.0) precise; urgency=low
+
+  * Changed: Recursive search for asset in a path is disabled, and we strictly enforce only one matching asset name
+  * Added: App version and published/unpublished note to dx run -h <app>
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Wed, 24 Jan 2018 18:56:12 +0000
+
+dx-toolkit (0.242.0) precise; urgency=low
+
+  * Changed: Use twine for pypy upload
+  * Fixed: Error that blocks org from being added as developers
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Wed, 13 Dec 2017 20:14:40 +0000
+
+dx-toolkit (0.241.0) precise; urgency=low
+
+  * Added: Accept 'http_proxy', 'HTTP_PROXY', 'https_proxy', 'HTTPS_PROXY' for proxy environmental variables
+  * Changed: dx-docker: use shutil.move() instead of os.rename() with the aci image
+  * Fixed: Error out instead of warning when old pricing scheme is used in dxapp.json
+  * Fixed: dx-docker: cleanup of the quote code (regression fix)
+  * Fixed: Certain tests flakiness
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Wed, 15 Nov 2017 19:34:20 +0000
+
+dx-toolkit (0.240.0) precise; urgency=low
+
+  * Added: Warning when runSpec.release is not specified with a note it will be required in the future
+  * Added: Numerous enhancements to Jupyter notebook support
+  * Changed: dx-app-wizard and dx get specify systemRequirements in regionalOptions and not in runSpec of dxapp.json
+  * Deprecated: setting systemRequirements in runSpec of dxapp.json
+  * Removed: dx-configset-to-fasta script
+  * Fixed: dx-clone-asset sets the default regions to be all regions that user has access to and skips redundant cloning to current region
+  * Fixed: dx build now works seamlessly across apps and applets
+
+ -- Nicolas Bock <nbock@dnanexus.com>  Thu, 02 Nov 2017 19:31:06 +0000
+
+dx-toolkit (0.239.0) precise; urgency=low
+
+  * Changed: Update run input help and describe messages for locked workflows
+  * Changed: Warn when old, top-level pricing policy scheme is used in dxapp.json
+  * Removed: dx-gtable-to-csv and dx-gtable-to-tsv scripts
+  * Removed: dx-workflow-to-applet script
+  * Removed: include_hidden_links parameter from clone()
+
+ -- Geet Duggal <gduggal@dnanexus.com>  Fri, 27 Oct 2017 17:40:24 +0000
+
+dx-toolkit (0.238.0) precise; urgency=low
+
+  * Fixed: dx-toolkit and apt conflict with argcomplete
+  * Added: dx-clone-asset script
+  * Added: dx-docker: ignore user argument if given
+  * Changed: app building tests now include runSpec.release and runSpec.distribution in app specs
+  * Changed: dx-docker: better handling of quotes
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Thu, 19 Oct 2017 17:30:40 +0000
+
+dx-toolkit (0.237.0) precise; urgency=low
+
+  * Changed: dx-toolkit installation in job container
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Wed, 04 Oct 2017 18:38:42 +0000
+
+dx-toolkit (0.236.0) precise; urgency=low
+
+  * Added: Azure instance types to the list of available types in 'dx-app-wizard'
+  * Changed: References to workflow 'inputs' and 'outputs' (sync API server changes)
+
+ -- Aleksandra Zalcman <azalcman@dnanexus.com>  Thu, 28 Sep 2017 20:41:05 +0000
+
+dx-toolkit (0.235.0) precise; urgency=low
+
+  * Added ua --test now displays system messages coming from the apiserver
+
+ -- Hamed Haddadian <HAMEDH@DNANEXUS.COM>  Thu, 21 Sep 2017 18:28:19 +0000
+
+dx-toolkit (0.234.0) precise; urgency=low
+
+  * No significant changes
+
+ -- Nicolas Bock <nbock@dnanexus.com>  Thu, 07 Sep 2017 19:25:27 +0000
+
+dx-toolkit (0.233.0) precise; urgency=low
+
+  * Added priority arg to build_asset
+  * Added region-specific pricing policy in dxapp.json
+
+ -- Geet Duggal <gduggal@dnanexus.com>  Thu, 31 Aug 2017 19:18:11 +0000
+
+dx-toolkit (0.232.0) precise; urgency=low
+
+  * No significant changes
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Thu, 24 Aug 2017 17:41:10 +0000
+
+dx-toolkit (0.231.0) precise; urgency=low
+
+  * Added: CLI support for workflow lockdown
+  * Removed: Deprecated 'dx-mount'
+
+ -- Aleksandra Zalcman <azalcman@dnanexus.com>  Thu, 17 Aug 2017 18:34:04 +0000
+
+dx-toolkit (0.230.0) precise; urgency=low
+
+  * Added : Initial 'dx notebook' commit
+  * Added : Python bindings for workflow-level input and output
+  * Added : Support for the 'downloadRestricted' flagX
+
+ -- Hamed Haddadian <HAMEDH@DNANEXUS.COM>  Thu, 10 Aug 2017 18:37:47 +0000
+
+dx-toolkit (0.229.0) precise; urgency=low
+
+  * Changed: Default to 14.04 release for all instance types in dx-app-wizard.
+
+ -- Nicolas Bock <nbock@dnanexus.com>  Thu, 27 Jul 2017 21:45:38 +0000
+
+dx-toolkit (0.228.0) precise; urgency=low
+
+  * No significant changes
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Thu, 13 Jul 2017 18:30:11 +0000
+
+dx-toolkit (0.227.0) precise; urgency=low
+
+  * Fixed: dx-jobutil-new-job now properly supports instance type
+  * Changed: Installation instructions now centralized on Github page
+  * Changed: Incrementally upgraded dependencies for Java bindings
+  * Added: Helper script to check TLS 1.2 support
+
+ -- Hamed Haddadian <HAMEDH@DNANEXUS.COM>  Thu, 29 Jun 2017 18:29:35 +0000
+
+dx-toolkit (0.225.0) precise; urgency=low
+
+  * Added A region parameter can now be passed to dxpy.find_data_objects() and dxpy.find_projects()
+  * Fixed dx-docker now no longer bind mounts $HOME and /tmp into the guest as this is consistent with Docker
+
+ -- Geet Duggal <gduggal@dnanexus.com>  Thu, 15 Jun 2017 16:38:38 +0000
+
+dx-toolkit (0.224.0) precise; urgency=low
+
+  * Fixed: Python 3 compatibility with `dx-app-wizard`
+  * Fixed: `dx get` does not redundantly inline description and developerNotes in dxapp.json
+  * Added: Client support for partial folder deletion
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Fri, 02 Jun 2017 15:53:38 +0000
+
+dx-toolkit (0.223.0) precise; urgency=low
+
+  * Add methods __next__() and next() to DXFile to complete iteration interface (thanks to Eric Talevich!)
+
+ -- Aleksandra Zalcman <azalcman@dnanexus.com>  Thu, 25 May 2017 18:29:42 +0000
+
+dx-toolkit (0.222.0) precise; urgency=low
+
+  * Fixed --bill-to option is utilized when building multi-region apps with dx build
+
+
+ -- Hamed Haddadian <HAMEDH@DNANEXUS.COM>  Thu, 18 May 2017 18:48:00 +0000
+
+dx-toolkit (0.221.0) precise; urgency=low
+
+  * Changed: Mac install no longer uses virtualenv. Instead, we ask users to install desired version of Python
+  * Fixed: dx-docker bug where environment variables passed in through the CLI do not get set within container
+  * Added: dx build creates a workflow on the platform based on the workflow's local source directory
+  * Removed: the deprecated dx-build-app and dx-build-applet scripts (that were replaced with dx build) were removed
+
+ -- Nicolas Bock <nbock@dnanexus.com>  Thu, 11 May 2017 18:03:24 +0000
+
+dx-toolkit (0.220.0) precise; urgency=low
+
+  * Fixed: Bug introduced in release 204.0: including app resources fails
+  * Added: Ability to specify additional resources for multi-region apps
+  * Changed: `dx ls -l` and friends now request only needed describe fields
+
+ -- Geet Duggal <gduggal@dnanexus.com>  Fri, 28 Apr 2017 16:43:37 +0000
+
+dx-toolkit (0.219.0) precise; urgency=low
+
+  * Added: Ability to specify bundledDepends and assetDepends for multi-region apps
+
+ -- Kurt Jensen <kjensen@dnanexus.com>  Thu, 20 Apr 2017 16:32:29 +0000
+
 dx-toolkit (0.218.0) precise; urgency=low
 
   * Changed: Use DNAnexus DockerHub repo for dx-docker tests
@@ -8,7 +340,7 @@ dx-toolkit (0.218.0) precise; urgency=low
 
 dx-toolkit (0.217.0) precise; urgency=low
 
-  * No significant changes. 
+  * No significant changes.
 
  -- Hamed Haddadian <HAMEDH@DNANEXUS.COM>  Thu, 06 Apr 2017 17:58:21 +0000
 

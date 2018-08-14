@@ -127,6 +127,8 @@ def get_io_desc(parameter, include_class=True, show_opt=True, app_help_version=F
     return desc
 
 def get_io_spec(spec, skip_fields=None):
+    if spec is None:
+        return 'null'
     if skip_fields is None:
         skip_fields = []
     filtered_spec = [param for param in spec if param["name"] not in skip_fields]
@@ -500,6 +502,11 @@ def print_project_desc(desc, verbose=False):
         if field not in recognized_fields:
             print_json_field(field, desc[field])
 
+def get_advanced_inputs(desc, verbose):
+    details = desc.get("details")
+    if not verbose and isinstance(details, dict):
+        return details.get("advancedInputs", [])
+    return []
 
 def print_app_desc(desc, verbose=False):
     recognized_fields = ['id', 'class', 'name', 'version', 'aliases', 'createdBy', 'created', 'modified', 'deleted', 'published', 'title', 'subtitle', 'description', 'categories', 'access', 'dxapi', 'inputSpec', 'outputSpec', 'runSpec', 'resources', 'billTo', 'installed', 'openSource', 'summary', 'applet', 'installs', 'billing', 'details', 'developerNotes',
@@ -564,19 +571,80 @@ def print_app_desc(desc, verbose=False):
         if field not in recognized_fields:
             print_json_field(field, desc[field])
 
+def print_globalworkflow_desc(desc, verbose=False):
+    recognized_fields = ['id', 'class', 'name', 'version', 'aliases', 'createdBy', 'created',
+                         'modified', 'deleted', 'published', 'title', 'description',
+                         'categories', 'dxapi', 'billTo', 'summary', 'billing', 'developerNotes',
+                         'authorizedUsers', 'regionalOptions']
+    is_locked_workflow = False
+    print_field("ID", desc["id"])
+    print_field("Class", desc["class"])
+    if 'billTo' in desc:
+        print_field("Billed to", desc['billTo'][5 if desc['billTo'].startswith('user-') else 0:])
+    print_field("Name", desc["name"])
+    print_field("Version", desc["version"])
+    print_list_field("Aliases", desc["aliases"])
+    print_field("Created by", desc["createdBy"][5 if desc['createdBy'].startswith('user-') else 0:])
+    print_field("Created", render_timestamp(desc['created']))
+    print_field("Last modified", render_timestamp(desc['modified']))
+    # print_json_field('Open source', desc['openSource'])
+    print_json_field('Deleted', desc.get('deleted', False))
+    if not desc.get('deleted', False):
+        if 'published' not in desc or desc["published"] < 0:
+            print_field("Published", "-")
+        else:
+            print_field("Published", render_timestamp(desc['published']))
+        if "title" in desc and desc['title'] is not None:
+            print_field("Title", desc["title"])
+        if "subtitle" in desc and desc['subtitle'] is not None:
+            print_field("Subtitle", desc["subtitle"])
+        if 'summary' in desc and desc['summary'] is not None:
+            print_field("Summary", desc['summary'])
+        print_list_field("Categories", desc["categories"])
+        if 'details' in desc:
+            print_json_field("Details", desc["details"])
+        print_field("API version", desc["dxapi"])
+
+        # Additionally, print inputs, outputs, stages of the underlying workflow
+        # from the region of the current workspace
+        current_project = dxpy.WORKSPACE_ID
+        if current_project:
+            region = dxpy.api.project_describe(current_project, input_params={"fields": {"region": True}})["region"]
+            if region and region in desc['regionalOptions']:
+                workflow_desc = desc['regionalOptions'][region]['workflowDescribe']
+                print_field("Workflow region", region)
+                if 'id' in workflow_desc:
+                    print_field("Workflow ID", workflow_desc['id'])
+                if workflow_desc.get('inputSpec') is not None and workflow_desc.get('inputs') is None:
+                    print_nofill_field("Input Spec", get_io_spec(workflow_desc['inputSpec'], skip_fields=get_advanced_inputs(workflow_desc, verbose)))
+                if workflow_desc.get('outputSpec') is not None and workflow_desc.get('outputs') is None:
+                    print_nofill_field("Output Spec", get_io_spec(workflow_desc['outputSpec']))
+                if  workflow_desc.get('inputs') is not None:
+                    is_locked_workflow = True
+                    print_nofill_field("Workflow Inputs", get_io_spec(workflow_desc['inputs']))
+                if  workflow_desc.get('outputs') is not None:
+                    print_nofill_field("Workflow Outputs", get_io_spec(workflow_desc['outputs']))
+                if 'stages' in workflow_desc:
+                    for i, stage in enumerate(workflow_desc["stages"]):
+                        render_stage("Stage " + str(i), stage)
+    if 'authorizedUsers' in desc:
+        print_list_field('AuthorizedUsers', desc["authorizedUsers"])
+
+    if is_locked_workflow:
+        print_locked_workflow_note()
+
+    for field in desc:
+        if field not in recognized_fields:
+            print_json_field(field, desc[field])
+
 def get_col_str(col_desc):
     return col_desc['name'] + DELIMITER(" (") + col_desc['type'] + DELIMITER(")")
 
 def print_data_obj_desc(desc, verbose=False):
     recognized_fields = ['id', 'class', 'project', 'folder', 'name', 'properties', 'tags', 'types', 'hidden', 'details', 'links', 'created', 'modified', 'state', 'title', 'subtitle', 'description', 'inputSpec', 'outputSpec', 'runSpec', 'summary', 'dxapi', 'access', 'createdBy', 'summary', 'sponsored', 'developerNotes',
-                         'stages', 'latestAnalysis', 'editVersion', 'outputFolder', 'initializedFrom']
+                         'stages', 'inputs', 'outputs', 'latestAnalysis', 'editVersion', 'outputFolder', 'initializedFrom', 'temporary']
 
-    def get_advanced_inputs():
-        details = desc.get("details")
-        if not verbose and isinstance(details, dict):
-            return details.get("advancedInputs", [])
-        return []
-
+    is_locked_workflow = False
     print_field("ID", desc["id"])
     print_field("Class", desc["class"])
     if 'project' in desc:
@@ -622,10 +690,19 @@ def print_data_obj_desc(desc, verbose=False):
         print_json_field("Access", desc["access"])
     if 'dxapi' in desc:
         print_field("API version", desc["dxapi"])
-    if "inputSpec" in desc and desc['inputSpec'] is not None:
-        print_nofill_field("Input Spec", get_io_spec(desc['inputSpec'], skip_fields=get_advanced_inputs()))
-    if "outputSpec" in desc and desc['outputSpec'] is not None:
+
+    # In case of a workflow: do not display "Input/Output Specs" that show stages IO
+    # when the workflow has workflow-level input/output fields defined.
+    if desc.get('inputSpec') is not None and desc.get('inputs') is None:
+        print_nofill_field("Input Spec", get_io_spec(desc['inputSpec'], skip_fields=get_advanced_inputs(desc, verbose)))
+    if desc.get('outputSpec') is not None and desc.get('outputs') is None:
         print_nofill_field("Output Spec", get_io_spec(desc['outputSpec']))
+    if  desc.get('inputs') is not None:
+        is_locked_workflow = True
+        print_nofill_field("Workflow Inputs", get_io_spec(desc['inputs']))
+    if  desc.get('outputs') is not None:
+        print_nofill_field("Workflow Outputs", get_io_spec(desc['outputs']))
+
     if 'runSpec' in desc:
         print_field("Interpreter", desc["runSpec"]["interpreter"])
         if "resources" in desc['runSpec']:
@@ -676,6 +753,8 @@ def print_data_obj_desc(desc, verbose=False):
             else: # Unhandled prettifying
                 print_json_field(field, desc[field])
 
+    if is_locked_workflow:
+        print_locked_workflow_note()
 
 def printable_ssh_host_key(ssh_host_key):
     try:
@@ -718,6 +797,8 @@ def print_execution_desc(desc):
         print_field('Resources', desc['resources'])
     if "app" in desc:
         print_field("App", desc["app"])
+    elif desc.get("executable", "").startswith("globalworkflow"):
+        print_field("Workflow", desc["executable"])
     elif "applet" in desc:
         print_field("Applet", desc["applet"])
     elif "workflow" in desc:
@@ -870,6 +951,8 @@ def print_desc(desc, verbose=False):
         print_project_desc(desc, verbose=verbose)
     elif desc['class'] == 'app':
         print_app_desc(desc, verbose=verbose)
+    elif desc['class'] == 'globalworkflow':
+        print_globalworkflow_desc(desc, verbose=verbose)
     elif desc['class'] in ['job', 'analysis']:
         print_execution_desc(desc)
     elif desc['class'] == 'user':
@@ -905,7 +988,26 @@ def print_ls_l_header():
     print(get_ls_l_header())
 
 
+def get_ls_l_desc_fields():
+    return {
+        'id': True,
+        'class': True,
+        'folder': True,
+        'length': True,
+        'modified': True,
+        'name': True,
+        'project': True,
+        'size': True,
+        'state': True
+    }
+
+
 def get_ls_l_desc(desc, include_folder=False, include_project=False):
+    """
+    desc must have at least all the fields given by get_ls_l_desc_fields.
+    """
+    # If you make this method consume an additional field, you must add it to
+    # get_ls_l_desc_fields above.
     if 'state' in desc:
         state_len = len(desc['state'])
         if desc['state'] != 'closed':
@@ -1009,3 +1111,7 @@ def get_find_executions_string(desc, has_children, single_result=False, show_out
                                                                                      subsequent_indent=prefix.lstrip('\n'))
 
     return result
+
+def print_locked_workflow_note():
+    print_field('Note',
+                'This workflow has an explicit input specification (i.e. it is locked), and as such stage inputs cannot be modified at run-time.')

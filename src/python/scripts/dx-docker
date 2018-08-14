@@ -53,6 +53,8 @@ def makedirs(path):
         pass
 
 parser = argparse.ArgumentParser()
+parser.add_argument("-q", "--quiet", action='store_true', help="Suppress printing pull progress to stderr")
+
 subparsers = parser.add_subparsers()
 
 def get_aci_fname(image):
@@ -88,7 +90,7 @@ def retry(tries=3, delay=1, backoff=2, retry_on_exceptions=None):
                 try:
                     f(*args, **kwargs)
                 except retry_on_exceptions as retry_exception:
-                    sys.stderr.write(dxpy.utils.printing.YELLOW("Error. Retrying in {} s.\n".format(mdelay)))
+                    sys.stderr.write(dxpy.utils.printing.YELLOW("Error. Retrying in {mdelay} s. Attempt {k} out of {n}.\n".format(mdelay=mdelay, k=i+1, n=tries)))
                     time.sleep(mdelay)
                     mdelay *= backoff
                     if i == tries - 1:
@@ -139,7 +141,7 @@ def get_aci(image, imgname, prefix="", quiet=False):
 
     img_dirname = prefix+CACHE_DIR
     makedirs(img_dirname)
-    os.rename(glob.glob(tmpdir+"/*.aci")[0], img_dirname+"/"+urllib.quote_plus(image)+".aci")
+    shutil.move(glob.glob(tmpdir+"/*.aci")[0], img_dirname+"/"+urllib.quote_plus(image)+".aci")
     shutil.rmtree(tmpdir)
 
 def register_docker_subcommand(cmd):
@@ -151,7 +153,7 @@ def register_docker_subcommand(cmd):
 parser_pull = subparsers.add_parser('pull', help="Pulls a docker image for use in DNAnexus")
 parser_pull.add_argument("image", help="image name")
 parser_pull.add_argument("-q", "--quiet", action='store_true', help="Suppress printing pull progress to stderr")
-@retry()
+@retry(tries=8)
 def pull(args):
     if not os.path.isdir(CACHE_DIR):
         makedirs(CACHE_DIR)
@@ -167,6 +169,7 @@ parser_run.add_argument("-w", "--workdir",  help="Working directory")
 parser_run.add_argument("-q", "--quiet",  action='store_true', help="Suppress printing of image metadata")
 parser_run.add_argument("--rootfs",  help="Use directory pointed to here for rootfs instead of extracting the image (for expert use/development purposes)")
 parser_run.add_argument("--rm",  action="store_true", help="Automatically remove the container when it exits")
+parser_run.add_argument("--user",  help="User to execute command as: *currently ignored*")
 parser_run.add_argument("image", help="image name")
 parser_run.add_argument("command", help="command to run within container", nargs=argparse.REMAINDER, default=[])
 def run(args):
@@ -237,6 +240,9 @@ def run(args):
          cmd = json.loads(annotations['cmd'])
 
     container_cmd = entrypoint + cmd
+    if len(container_cmd) == 0:
+        raise Exception("Empty command. Must supply a command to run within the container")
+
 
     workdir = "/"
     if 'app' in imagemeta and 'workingDirectory' in imagemeta['app']:
@@ -247,13 +253,37 @@ def run(args):
     default_homedir_env = "HOME=/root"
     env = ["env", "-i", default_homedir_env]
     if 'app' in imagemeta and 'environment' in imagemeta['app']:
-        env.extend(args.env + [var['name'] +"="+var['value']  for var in imagemeta['app']['environment']])
+        env.extend([var['name'] +"="+var['value']  for var in imagemeta['app']['environment']] + args.env)
 
     if args.rm and not args.quiet:
         sys.stderr.write(dxpy.utils.printing.YELLOW("--rm: Note that by default the container is not preserved after execution\n"))
 
+    if args.user and not args.quiet:
+        sys.stderr.write(dxpy.utils.printing.YELLOW("--user: Note that the current implementation ignores the user command\n"))
+
+
+    # A list of dirs and files of the host rootfs that will be accessible in the confined
+    # environment just as if they were part of the guest rootfs. This list is based on the
+    # proot -R option: https://github.com/proot-me/PRoot/blob/master/doc/proot/manual.txt
+    to_mount = [ '/etc/host.conf', '/etc/hosts', '/etc/mtab', '/etc/networks', '/etc/passwd',
+                 '/etc/group', '/etc/nsswitch.conf', '/etc/resolv.conf', '/etc/localtime',
+                 '/dev/', '/sys/', '/proc/', '/run/', '/var/run/dbus/system_bus_socket']
+
+    # TODO: rename this: 'bounded' is a bit confusing and they are not always dirs
+    bounded_dirs = []
+    for b in to_mount:
+        bounded_dirs.append('-b')
+        bounded_dirs.append(b)
+
     # TODO: implement some form of nested subprocesses to avoid quoting command array if possible
-    proot_cmd =  ["proot", "-R", "{tmpdir}/rootfs".format(tmpdir=tmpdir)] + volume + ["-w", workdir] + env + ["/bin/sh", "-c"] + [" ".join(("'"+x+"'" for x in container_cmd))]
+    proot_cmd =  ["proot", '-r', '{tmpdir}/rootfs'.format(tmpdir=tmpdir)] + \
+                 bounded_dirs + \
+                 volume + \
+                 ["-w", workdir] + \
+                 env + ["/bin/sh", "-c"] + \
+                 [subprocess.list2cmdline(container_cmd)]
+
+
     shell(proot_cmd)
     if not args.rootfs:
         shutil.rmtree(tmpdir)
@@ -283,7 +313,7 @@ def local_image_to_aci(image, tmpdir, dirprefix, alternative_export=False):
         elif any(image == digest for digest in digest_list if digest.strip()):
             sys.stderr.write(dxpy.utils.printing.YELLOW("Digest: {} found in local docker cache\n".format(image)))
             return True
-        else:    
+        else:
             return False
 
     # We have observed an instance where the Docker CLI and docker2aci do not properly export a rootfs.  Here is a hopefully temporary workaround
@@ -372,6 +402,8 @@ parser_create_asset = subparsers.add_parser('create-asset', help="Caches a local
 parser_create_asset.add_argument("--output_path", "-o", help="Project ID and path in project to upload image to (defaults to project root)")
 parser_create_asset.add_argument("image", help="image name")
 parser_create_asset.add_argument("--alternative_export", help="EXPERT ONLY: Use alternative method to export Docker image since Docker CLI export sometimes doesn't create the root filesystem properly.", action="store_true")
+parser_create_asset.add_argument("--ubuntu_version", type=str, required=False, default='14.04', help="Ubuntu version")
+parser_create_asset.add_argument("--asset_version", type=str, required=False, default='0.0.1', help="Asset version")
 def create_asset(args):
     register_docker_subcommand("create-asset")
     # Create asset
@@ -386,9 +418,9 @@ def create_asset(args):
     dxasset = { 'name': imagename }
     dxasset['title'] = "DNAnexus asset for Docker image "+args.image
     dxasset['description'] = dxasset['title']
-    dxasset['version'] = "0.0.1"
+    dxasset['version'] = args.asset_version
     dxasset['distribution'] = "Ubuntu"
-    dxasset['release'] = "14.04"
+    dxasset['release'] = args.ubuntu_version
     dxasset['instanceType'] = "mem2_ssd1_x4"
     with open("{}/dxasset.json".format(tmpdir), "w") as f:
         f.write(json.dumps(dxasset))
@@ -420,7 +452,7 @@ def create_asset(args):
     record_properties = {
                           "title": dxasset["title"],
                           "description": dxasset["description"],
-                          "version": "0.0.1",
+                          "version": dxasset['version'],
                           "distribution": dxasset["distribution"],
                           "release": dxasset["release"]
                         }
@@ -440,8 +472,8 @@ def create_asset(args):
         "project": \"{}\",
         "folder": \"{}\",
         "name": \"{}\",
-        "version": "0.0.1"
-    """).format(project_id, folder_path, args.image)+"}\n")
+        "version": \"{}\"
+    """).format(project_id, folder_path, args.image, args.asset_version)+"}\n")
 
     # Remove the temporary directory
     shutil.rmtree(tmpdir)

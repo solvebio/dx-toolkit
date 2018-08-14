@@ -587,15 +587,12 @@ class DXDataObject(DXObject):
                               **kwargs)
 
 
-    def clone(self, project, folder="/", include_hidden_links=True,
-              **kwargs):
+    def clone(self, project, folder="/", **kwargs):
         '''
         :param project: Destination project ID
         :type project: string
         :param folder: Folder route to which to move the object
         :type folder: string
-        :param include_hidden_links: If True, hidden objects linked to by this object are also cloned into the destination project
-        :type include_hidden_links: boolean
         :raises: :exc:`~dxpy.exceptions.DXError` if no project is associated with the object
         :returns: An object handler for the new cloned object
         :rtype: :class:`DXDataObject`
@@ -612,8 +609,7 @@ class DXDataObject(DXObject):
         dxpy.api.project_clone(self._proj,
                                {"objects": [self._dxid],
                                 "project": project,
-                                "destination": folder,
-                                "includeHiddenLinks": include_hidden_links},
+                                "destination": folder},
                                **kwargs)
         cloned_copy = copy.copy(self)
         cloned_copy.set_ids(cloned_copy.get_id(), project)
@@ -661,9 +657,10 @@ from .dxjob import DXJob, new_dxjob
 from .dxanalysis import DXAnalysis
 from .dxapplet import DXExecutable, DXApplet
 from .dxapp import DXApp
+from .dxglobalworkflow import DXGlobalWorkflow
 from .dxworkflow import DXWorkflow, new_dxworkflow
 from .auth import user_info, whoami
 from .dxdataobject_functions import dxlink, is_dxlink, get_dxlink_ids, get_handler, describe, get_details, remove
-from .search import (find_data_objects, find_executions, find_jobs, find_analyses, find_projects, find_apps,
+from .search import (find_data_objects, find_executions, find_jobs, find_analyses, find_projects, find_apps, find_global_workflows,
                      find_one_data_object, find_one_project, find_one_app, resolve_data_objects, find_orgs,
                      org_find_members, org_find_projects, org_find_apps)

@@ -35,8 +35,9 @@ from .. import logger
 from . import dxfile, DXFile
 from .dxfile import FILE_REQUEST_TIMEOUT
 from ..compat import open
-from ..exceptions import DXFileError, DXPartLengthMismatchError, DXChecksumMismatchError, DXIncompleteReadsError
+from ..exceptions import DXFileError, DXPartLengthMismatchError, DXChecksumMismatchError, DXIncompleteReadsError, err_exit
 from ..utils import response_iterator
+import subprocess
 
 def open_dxfile(dxid, project=None, read_buffer_size=dxfile.DEFAULT_BUFFER_SIZE):
     '''
@@ -123,6 +124,72 @@ def download_dxfile(dxid, filename, chunksize=dxfile.DEFAULT_BUFFER_SIZE, append
                                    show_progress=show_progress, project=project, **kwargs)
 
 
+# Check if a program (wget, curl, etc.) is on the path, and
+# can be called.
+def _which(program):
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+    for path in os.environ["PATH"].split(os.pathsep):
+        exe_file = os.path.join(path, program)
+        if is_exe(exe_file):
+            return exe_file
+    return None
+
+# Caluclate the md5 checkum for [filename], and raise
+# an exception if the checksum is wrong.
+def _verify(filename, md5digest):
+    md5sum_exe = _which("md5sum")
+    if md5sum_exe is None:
+        err_exit("md5sum is not installed on this system")
+    cmd = [md5sum_exe, "-b", filename]
+    try:
+        print("Calculating checksum")
+        cmd_out = subprocess.check_output(cmd)
+    except subprocess.CalledProcessError:
+        err_exit("Failed to run md5sum: " + str(cmd))
+
+    line = cmd_out.strip().split()
+    if len(line) != 2:
+        err_exit("md5sum returned weird results: " + str(line))
+    actual_md5 = line[0]
+    if actual_md5 != md5digest:
+        err_exit("Checksum doesn't match " + actual_md5 + "  expected:" + md5digest)
+    print("Checksum correct")
+
+# [dxid] is a symbolic link. Create a preauthenticated URL,
+# and download it
+def _download_symbolic_link(dxid, md5digest, project, dest_filename):
+    dxfile = dxpy.DXFile(dxid)
+    url, _headers = dxfile.get_download_url(preauthenticated=True,
+                                            duration=6*3600,
+                                            project=project)
+ 
+    # Follow the redirection
+    print('Following redirect for ' + url)
+
+    wget_exe = _which("wget")
+    if wget_exe is None:
+        err_exit("wget is not installed on this system")
+
+    cmd = ["wget", "--tries=5", "--quiet"]
+    if os.path.isfile(dxid):
+        # file already exists, resume upload.
+        cmd += ["--continue"]
+    cmd += ["-O", dest_filename, url]
+
+    try:
+        print("Downloading symbolic link with wget")
+        subprocess.check_call(cmd, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        msg = ""
+        if e and e.output:
+            msg = e.output.strip()
+        err_exit("Failed to call wget: {cmd}\n{msg}\n".format(cmd=str(cmd), msg=msg))
+
+    if md5digest is not None:
+        _verify(dest_filename, md5digest)
+
 def _download_dxfile(dxid, filename, part_retry_counter,
                      chunksize=dxfile.DEFAULT_BUFFER_SIZE, append=False, show_progress=False,
                      project=None, **kwargs):
@@ -168,6 +235,17 @@ def _download_dxfile(dxid, filename, part_retry_counter,
         dxfile = DXFile(dxid, mode="r", project=(project if project != DXFile.NO_PROJECT_HINT else None))
 
     dxfile_desc = dxfile.describe(fields={"parts"}, default_fields=True, **kwargs)
+
+    from pprint import pprint
+    if 'drive' in dxfile_desc:
+        # A symbolic link. Get the MD5 checksum, if we have it
+        if 'md5' in dxfile_desc:
+            md5 = dxfile_desc['md5']
+        else:
+            md5 = None
+        _download_symbolic_link(dxid, md5, project, filename)
+        return True
+
     parts = dxfile_desc["parts"]
     parts_to_get = sorted(parts, key=int)
     file_size = dxfile_desc.get("size")
@@ -290,7 +368,7 @@ def _download_dxfile(dxid, filename, part_retry_counter,
 
 def upload_local_file(filename=None, file=None, media_type=None, keep_open=False,
                       wait_on_close=False, use_existing_dxfile=None, show_progress=False,
-                      write_buffer_size=None, **kwargs):
+                      write_buffer_size=None, multithread=True, **kwargs):
     '''
     :param filename: Local filename
     :type filename: string
@@ -306,6 +384,8 @@ def upload_local_file(filename=None, file=None, media_type=None, keep_open=False
     :type wait_on_close: boolean
     :param use_existing_dxfile: Instead of creating a new file object, upload to the specified file
     :type use_existing_dxfile: :class:`~dxpy.bindings.dxfile.DXFile`
+    :param multithread: If True, sends multiple write requests asynchronously
+    :type multithread: boolean
     :returns: Remote file handler
     :rtype: :class:`~dxpy.bindings.dxfile.DXFile`
 
@@ -425,7 +505,10 @@ def upload_local_file(filename=None, file=None, media_type=None, keep_open=False
         if len(buf) == 0:
             break
 
-        handler.write(buf, report_progress_fn=report_progress if show_progress else None, **remaining_kwargs)
+        handler.write(buf,
+                      report_progress_fn=report_progress if show_progress else None,
+                      multithread=multithread,
+                      **remaining_kwargs)
 
     if filename is not None:
         fd.close()
@@ -552,8 +635,9 @@ def download_folder(project, destdir, folder="/", overwrite=False, chunksize=dxf
         ensure_local_dir(compose_local_dir(normalized_dest_dir, normalized_folder, remote_subfolder))
 
     # Downloading files
+    describe_input = dict(fields=dict(folder=True, name=True, id=True))
     for remote_file in dxpy.search.find_data_objects(classname='file', state='closed', project=project,
-                                                     folder=normalized_folder, recurse=True, describe=True):
+                                                     folder=normalized_folder, recurse=True, describe=describe_input):
         local_filename = os.path.join(compose_local_dir(normalized_dest_dir,
                                                         normalized_folder,
                                                         remote_file['describe']['folder']),

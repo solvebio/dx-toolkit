@@ -113,7 +113,7 @@ def find_data_objects(classname=None, state=None, visibility=None,
                       link=None, project=None, folder=None, recurse=None,
                       modified_after=None, modified_before=None,
                       created_after=None, created_before=None,
-                      describe=False, limit=None, level=None,
+                      describe=False, limit=None, level=None, region=None,
                       return_handler=False, first_page_size=100,
                       **kwargs):
     """
@@ -160,6 +160,8 @@ def find_data_objects(classname=None, state=None, visibility=None,
         things, be used to customize the set of fields that is returned)
     :type describe: bool or dict
     :param level: The minimum permissions level for which results should be returned (one of "VIEW", "UPLOAD", "CONTRIBUTE", or "ADMINISTER")
+    :param region: Filter on result set by the given region(s).
+    :type region: string or list of strings
     :type level: string
     :param limit: The maximum number of results to be returned (if not specified, the number of results is unlimited)
     :type limit: int
@@ -256,6 +258,8 @@ def find_data_objects(classname=None, state=None, visibility=None,
         query["describe"] = describe
     if level is not None:
         query['level'] = level
+    if region is not None:
+        query['region'] = region
     if limit is not None:
         query["limit"] = limit
 
@@ -428,7 +432,7 @@ def find_analyses(*args, **kwargs):
     return find_executions(*args, **kwargs)
 
 def find_projects(name=None, name_mode='exact', properties=None, tags=None,
-                  level=None, describe=False, explicit_perms=None,
+                  level=None, describe=False, explicit_perms=None, region=None,
                   public=None, created_after=None, created_before=None, billed_to=None,
                   limit=None, return_handler=False, first_page_size=100, containsPHI=None, **kwargs):
     """
@@ -450,6 +454,8 @@ def find_projects(name=None, name_mode='exact', properties=None, tags=None,
     :type describe: bool or dict
     :param explicit_perms: Filter on presence of an explicit permision. If True, matching projects must have an explicit permission (any permission granted directly to the user or an organization to which the user belongs). If False, matching projects must not have any explicit permissions for the user. (default is None, for no filter)
     :type explicit_perms: boolean or None
+    :param region: If specified, only returns projects where the project is in the given region.
+    :type region: string
     :param public: Filter on the project being public. If True, matching projects must be public. If False, matching projects must not be public. (default is None, for no filter)
     :type public: boolean or None
     :param created_after: Timestamp after which each result was created
@@ -508,6 +514,8 @@ def find_projects(name=None, name_mode='exact', properties=None, tags=None,
             query["created"]["after"] = dxpy.utils.normalize_time_input(created_after)
         if created_before is not None:
             query["created"]["before"] = dxpy.utils.normalize_time_input(created_before)
+    if region is not None:
+        query['region'] = region
     if billed_to is not None:
         query['billTo'] = billed_to
     if limit is not None:
@@ -517,28 +525,31 @@ def find_projects(name=None, name_mode='exact', properties=None, tags=None,
 
     return _find(dxpy.api.system_find_projects, query, limit, return_handler, first_page_size, **kwargs)
 
-def find_apps(name=None, name_mode='exact', category=None,
-              all_versions=None, published=None,
-              billed_to=None, created_by=None, developer=None,
-              created_after=None, created_before=None,
-              modified_after=None, modified_before=None,
-              describe=False, limit=None, return_handler=False, first_page_size=100, **kwargs):
+def find_global_executables(method, name=None, name_mode='exact', category=None,
+                            all_versions=None, published=None,
+                            billed_to=None, created_by=None, developer=None,
+                            created_after=None, created_before=None,
+                            modified_after=None, modified_before=None,
+                            describe=False, limit=None, return_handler=False,
+                            first_page_size=100, **kwargs):
     """
-    :param name: Name of the app (also see *name_mode*)
+    :param method: Name of the API method used to find the global executable (app or a global workflow).
+    :type name: function
+    :param name: Name of the app or a global workflow (also see *name_mode*)
     :type name: string
     :param name_mode: Method by which to interpret the *name* field ("exact": exact match, "glob": use "*" and "?" as wildcards, "regexp": interpret as a regular expression)
     :type name_mode: string
-    :param category: If specified, only returns apps that are in the specified category
+    :param category: If specified, only returns executables that are in the specified category
     :type category: string
-    :param all_versions: Whether to return all versions of each app or just the version tagged "default"
+    :param all_versions: Whether to return all versions of each app/global workflow or just the version tagged "default"
     :type all_versions: boolean
-    :param published: If specified, only returns results that have the specified publish status (True for published apps, False for unpublished apps)
+    :param published: If specified, only returns results that have the specified publish status (True for published apps/global workflows, False for unpublished ones)
     :type published: boolean
-    :param billed_to: Entity ID (user or organization) that pays for the app's storage costs
+    :param billed_to: Entity ID (user or organization) that pays for the storage costs of the app/global workflow
     :type billed_to: string
-    :param created_by: If specified, only returns app versions that were created by the specified user (of the form "user-USERNAME")
+    :param created_by: If specified, only returns versions that were created by the specified user (of the form "user-USERNAME")
     :type created_by: string
-    :param developer: If specified, only returns apps for which the specified user (of the form "user-USERNAME") is a developer
+    :param developer: If specified, only returns apps or global workflows for which the specified user (of the form "user-USERNAME") is a developer
     :type developer: string
     :param created_after: Timestamp after which each result was last created (see note accompanying :meth:`find_data_objects()` for interpretation)
     :type created_after: int or string
@@ -549,7 +560,7 @@ def find_apps(name=None, name_mode='exact', category=None,
     :param modified_before: Timestamp before which each result was last modified (see note accompanying :meth:`find_data_objects()` for interpretation)
     :type modified_before: int or string
     :param describe: Controls whether to also return the output of
-        calling describe() on each app. Supply False to omit describe
+        calling describe() on each executable. Supply False to omit describe
         output, True to obtain the default describe output, or a dict to
         be supplied as the describe call input (which may be used to
         customize the set of fields that is returned)
@@ -562,10 +573,10 @@ def find_apps(name=None, name_mode='exact', category=None,
     :type return_handler: boolean
     :rtype: generator
 
-    Returns a generator that yields all apps that match the query. It
-    transparently handles paging through the result set if necessary.
-    For all parameters that are omitted, the search is not restricted by
-    the corresponding field.
+    Returns a generator that yields all global executables (either apps or
+    global workflows) that match the query. It transparently handles paging through
+    the result set if necessary. For all parameters that are omitted, the search is
+    not restricted by the corresponding field.
 
     """
 
@@ -578,7 +589,7 @@ def find_apps(name=None, name_mode='exact', category=None,
         elif name_mode == 'regexp':
             query['name'] = {'regexp': name}
         else:
-            raise DXError('find_apps: Unexpected value found for argument name_mode')
+            raise DXError('find_global_executables: Unexpected value found for argument name_mode')
     if category is not None:
         query["category"] = category
     if all_versions is not None:
@@ -608,7 +619,46 @@ def find_apps(name=None, name_mode='exact', category=None,
     if limit is not None:
         query["limit"] = limit
 
-    return _find(dxpy.api.system_find_apps, query, limit, return_handler, first_page_size, **kwargs)
+    return _find(method, query, limit, return_handler, first_page_size, **kwargs)
+
+def find_apps(name=None, name_mode='exact', category=None,
+              all_versions=None, published=None,
+              billed_to=None, created_by=None, developer=None,
+              created_after=None, created_before=None,
+              modified_after=None, modified_before=None,
+              describe=False, limit=None, return_handler=False, first_page_size=100, **kwargs):
+    """
+    This method is identical to :meth:`find_global_executables()` with the API method
+    used: :meth:`system_find_apps()`.
+    """
+    return find_global_executables(dxpy.api.system_find_apps,
+                                   name=name, name_mode=name_mode, category=category,
+                                   all_versions=all_versions, published=published,
+                                   billed_to=billed_to, created_by=created_by, developer=developer,
+                                   created_after=created_after, created_before=created_before,
+                                   modified_after=modified_after, modified_before=modified_before,
+                                   describe=describe, limit=limit, return_handler=return_handler,
+                                   first_page_size=first_page_size, **kwargs)
+
+def find_global_workflows(name=None, name_mode='exact', category=None,
+                          all_versions=None, published=None,
+                          billed_to=None, created_by=None, developer=None,
+                          created_after=None, created_before=None,
+                          modified_after=None, modified_before=None,
+                          describe=False, limit=None, return_handler=False,
+                          first_page_size=100, **kwargs):
+    """
+    This method is identical to :meth:`find_global_executables()` with the API method
+    used: :meth:`system_find_global_workflows()`.
+    """
+    return find_global_executables(dxpy.api.system_find_global_workflows,
+                                  name=name, name_mode=name_mode, category=category,
+                                  all_versions=all_versions, published=published,
+                                  billed_to=billed_to, created_by=created_by, developer=developer,
+                                  created_after=created_after, created_before=created_before,
+                                  modified_after=modified_after, modified_before=modified_before,
+                                  describe=describe, limit=limit, return_handler=return_handler,
+                                  first_page_size=first_page_size, **kwargs)
 
 def _find_one(method, zero_ok=False, more_ok=True, **kwargs):
     kwargs["limit"] = 1 if more_ok else 2
@@ -739,7 +789,7 @@ def org_find_members(org_id=None, level=None, describe=False):
 
 
 def org_find_projects(org_id=None, name=None, name_mode='exact', ids=None, properties=None, tags=None, describe=False,
-                      public=None, created_after=None, created_before=None, containsPHI=None):
+                      public=None, created_after=None, created_before=None, region=None, containsPHI=None):
     """
     :param org_id: ID of the organization
     :type org_id: string
@@ -768,6 +818,8 @@ def org_find_projects(org_id=None, name=None, name_mode='exact', ids=None, prope
     :param created_before: Timestamp before which each result was created
         (see note accompanying :meth:`find_data_objects()` for interpretation)
     :type created_before: int or string
+    :param region: If specified, only returns projects where the project is in the given region.
+    :type region: string
     :param containsPHI: If set to true, only returns projects that contain PHI.
         If set to false, only returns projects that do not contain PHI.
     :type containsPHI: boolean
@@ -808,6 +860,8 @@ def org_find_projects(org_id=None, name=None, name_mode='exact', ids=None, prope
             query["created"]["after"] = dxpy.utils.normalize_time_input(created_after)
         if created_before is not None:
             query["created"]["before"] = dxpy.utils.normalize_time_input(created_before)
+    if region is not None:
+        query['region'] = region
     if containsPHI is not None:
         query["containsPHI"] = containsPHI
 

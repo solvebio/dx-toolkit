@@ -126,6 +126,11 @@ namespace dx {
   JSON appRunWithAlias(const std::string &app_name, const std::string &app_alias, const std::string &input_params="{}", const bool safe_to_retry=false);
   JSON appRunWithAlias(const std::string &app_name, const std::string &app_alias, const dx::JSON &input_params, const bool safe_to_retry=false);
 
+  JSON appValidateBatch(const std::string &app_id_or_name, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON appValidateBatch(const std::string &app_id_or_name, const dx::JSON &input_params, const bool safe_to_retry=true);
+  JSON appValidateBatchWithAlias(const std::string &app_name, const std::string &app_alias, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON appValidateBatchWithAlias(const std::string &app_name, const std::string &app_alias, const dx::JSON &input_params, const bool safe_to_retry=true);
+
   JSON appUninstall(const std::string &app_id_or_name, const std::string &input_params="{}", const bool safe_to_retry=true);
   JSON appUninstall(const std::string &app_id_or_name, const dx::JSON &input_params, const bool safe_to_retry=true);
   JSON appUninstallWithAlias(const std::string &app_name, const std::string &app_alias, const std::string &input_params="{}", const bool safe_to_retry=true);
@@ -159,6 +164,9 @@ namespace dx {
 
   JSON appletRename(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
   JSON appletRename(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON appletValidateBatch(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON appletValidateBatch(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
 
   JSON appletRun(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=false);
   JSON appletRun(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=false);
@@ -195,6 +203,42 @@ namespace dx {
 
   JSON containerRenameFolder(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=false);
   JSON containerRenameFolder(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=false);
+
+  JSON databaseAddTags(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON databaseAddTags(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON databaseAddTypes(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON databaseAddTypes(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON databaseDescribe(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON databaseDescribe(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON databaseGetDetails(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON databaseGetDetails(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON databaseListProjects(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON databaseListProjects(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON databaseRelocate(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=false);
+  JSON databaseRelocate(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=false);
+
+  JSON databaseRemoveTags(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON databaseRemoveTags(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON databaseRemoveTypes(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON databaseRemoveTypes(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON databaseRename(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON databaseRename(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON databaseSetDetails(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON databaseSetDetails(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON databaseSetProperties(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON databaseSetProperties(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON databaseSetVisibility(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON databaseSetVisibility(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
 
   JSON fileAddTags(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
   JSON fileAddTags(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
@@ -240,6 +284,57 @@ namespace dx {
 
   JSON fileNew(const std::string &input_params="{}", const bool safe_to_retry=false);
   JSON fileNew(const dx::JSON &input_params, const bool safe_to_retry=false);
+
+  JSON globalWorkflowAddAuthorizedUsers(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowAddAuthorizedUsers(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowAddCategories(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowAddCategories(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowAddDevelopers(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowAddDevelopers(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowAddTags(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowAddTags(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowDelete(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowDelete(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowDescribe(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowDescribe(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowListAuthorizedUsers(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowListAuthorizedUsers(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowListCategories(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowListCategories(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowListDevelopers(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowListDevelopers(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowPublish(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowPublish(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowRemoveAuthorizedUsers(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowRemoveAuthorizedUsers(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowRemoveCategories(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowRemoveCategories(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowRemoveDevelopers(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowRemoveDevelopers(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowRemoveTags(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowRemoveTags(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowRun(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=false);
+  JSON globalWorkflowRun(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=false);
+
+  JSON globalWorkflowUpdate(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON globalWorkflowUpdate(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON globalWorkflowNew(const std::string &input_params="{}", const bool safe_to_retry=false);
+  JSON globalWorkflowNew(const dx::JSON &input_params, const bool safe_to_retry=false);
 
   JSON gtableAddRows(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
   JSON gtableAddRows(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
@@ -457,6 +552,9 @@ namespace dx {
   JSON systemFindDataObjects(const std::string &input_params="{}", const bool safe_to_retry=true);
   JSON systemFindDataObjects(const dx::JSON &input_params, const bool safe_to_retry=true);
 
+  JSON systemFindGlobalWorkflows(const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON systemFindGlobalWorkflows(const dx::JSON &input_params, const bool safe_to_retry=true);
+
   JSON systemResolveDataObjects(const std::string &input_params="{}", const bool safe_to_retry=true);
   JSON systemResolveDataObjects(const dx::JSON &input_params, const bool safe_to_retry=true);
 
@@ -465,6 +563,9 @@ namespace dx {
 
   JSON systemFindAnalyses(const std::string &input_params="{}", const bool safe_to_retry=true);
   JSON systemFindAnalyses(const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON systemFindDatabases(const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON systemFindDatabases(const dx::JSON &input_params, const bool safe_to_retry=true);
 
   JSON systemFindJobs(const std::string &input_params="{}", const bool safe_to_retry=true);
   JSON systemFindJobs(const dx::JSON &input_params, const bool safe_to_retry=true);
@@ -480,6 +581,9 @@ namespace dx {
 
   JSON systemFindOrgs(const std::string &input_params="{}", const bool safe_to_retry=true);
   JSON systemFindOrgs(const dx::JSON &input_params, const bool safe_to_retry=true);
+
+  JSON systemGenerateBatchInputs(const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON systemGenerateBatchInputs(const dx::JSON &input_params, const bool safe_to_retry=true);
 
   JSON systemGlobalSearch(const std::string &input_params="{}", const bool safe_to_retry=true);
   JSON systemGlobalSearch(const dx::JSON &input_params, const bool safe_to_retry=true);
@@ -549,6 +653,9 @@ namespace dx {
 
   JSON workflowRun(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=false);
   JSON workflowRun(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=false);
+
+  JSON workflowValidateBatch(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
+  JSON workflowValidateBatch(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
 
   JSON workflowSetDetails(const std::string &object_id, const std::string &input_params="{}", const bool safe_to_retry=true);
   JSON workflowSetDetails(const std::string &object_id, const dx::JSON &input_params, const bool safe_to_retry=true);
